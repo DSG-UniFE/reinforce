@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# Released under the MIT License.
+# Copyright, 2023, by Mauro Tortonesi.
+
 require 'reinforce/algorithms/reinforce'
 
 describe Reinforce::Algorithms::Reinforce do

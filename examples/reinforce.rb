@@ -2,6 +2,9 @@
 
 require 'reinforce/algorithms/reinforce'
 require 'reinforce/environment/gridworld'
+# Released under the MIT License.
+# Copyright, 2023, by Mauro Tortonesi.
+
 require 'torch'
 
 # Create the environment

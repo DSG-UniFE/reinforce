@@ -15,14 +15,21 @@ module Reinforce
         @discount_factor = discount_factor
         @model = model
         @optimizer = optimizer
+        @log_probs = []
+        @rewards = []
+      end
+
+      def reset
+        @log_probs = []
+        @rewards = []
       end
 
       def choose_action(state)
         # Obtain the log probabilities of each action from the model
-        lp_params = @model.forward(state.flatten)
+        logits = @model.forward(state)
 
         # Sample an action from the distribution
-        pd = CategoricalDistribution.new(log_probs: lp_params)
+        pd = CategoricalDistribution.new(logits: logits.to_a)
         action = pd.sample
 
         # Store the log probability of the action
@@ -36,11 +43,12 @@ module Reinforce
       end
 
       def update_policy
-        discounted_rewards = Torch::Tensor.new(calculate_discounted_rewards(rewards))
-        loss = Torch.sum(-Torch.stack(@log_probs) * discounted_rewards)
+        discounted_rewards = calculate_discounted_rewards(@rewards)
+        rewards = Torch::Tensor.new(discounted_rewards)
+        log_probs = Torch::Tensor.new(@log_probs)
+        loss = Torch.sum(- log_probs * rewards)
         @optimizer.zero_grad
-        loss.backward
-        @optimizer.step
+        @optimizer.step(proc { loss })
         loss
       end
 

@@ -30,6 +30,7 @@ module Reinforce
       end
 
       def step(action)
+        action = ACTIONS.index(action) if action.is_a?(Integer)
         next_state = @state.dup
         reward = 0
         done = false
@@ -43,6 +44,8 @@ module Reinforce
           next_state[1] -= 1 unless (next_state[1]).zero?
         when :right
           next_state[1] += 1 unless next_state[1] == @size - 1
+        else
+          raise "Invalid action: #{action}"
         end
 
         if @obstacles.include?(next_state)
@@ -64,14 +67,14 @@ module Reinforce
           line = ''
           (0...@size).each do |j|
             line += if @start == [i, j]
-              'S '
-            elsif @goal == [i, j]
-              'G '
-            elsif @obstacles.include?([i, j])
-              'X '
-            else
-              '_ '
-            end
+                      'S '
+                    elsif @goal == [i, j]
+                      'G '
+                    elsif @obstacles.include?([i, j])
+                      'X '
+                    else
+                      '_ '
+                    end
           end
           output_stream.puts line
         end

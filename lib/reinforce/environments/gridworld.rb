@@ -30,7 +30,7 @@ module Reinforce
       end
 
       def step(action)
-        action = ACTIONS.index(action) if action.is_a?(Integer)
+        action = ACTIONS[action] if action.is_a?(Integer)
         next_state = @state.dup
         reward = 0
         done = false

@@ -30,6 +30,12 @@ class CategoricalDistribution
     argmax(x)
   end
 
+  def greedy
+    # return the index of the action with the highest logit (equivalent to the
+    # action with the highest probability)
+    argmax(@logits)
+  end
+
   private
 
   def argmax(array)

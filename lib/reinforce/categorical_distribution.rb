@@ -5,6 +5,51 @@
 
 require 'forwardable'
 
+class CategoricalDistributionFactory
+  def self.create_from_logits(logits)
+    CategoricalDistribution.new(logits:)
+  end
+
+  def self.create_from_frequencies(frequencies)
+    CategoricalDistributionFrequency.new(frequencies:)
+  end
+end
+
+class CategoricalDistributionFrequency
+  def initialize(frequencies:)
+    @frequencies = frequencies
+    @cumulative_probabilities = compute_cumulative_probabilities(frequencies)
+  end
+
+  def sample
+    random_value = rand
+    @cumulative_probabilities.each_with_index do |cumulative_prob, index|
+      return index if random_value < cumulative_prob
+    end
+    # Return the last index if the random value is greater than or equal to 1
+    @cumulative_probabilities.length - 1
+  end
+
+  def greedy
+    # Return the index with the highest frequency as the greedy choice
+    max_index = @frequencies.index(@frequencies.max)
+    max_index.nil? ? sample : max_index
+  end
+
+  private
+
+  def compute_cumulative_probabilities(frequencies)
+    total_frequency = frequencies.sum.to_f
+    cumulative_probabilities = [frequencies[0] / total_frequency]
+
+    1.upto(frequencies.length - 1).each do |i|
+      cumulative_probabilities[i] = cumulative_probabilities[i - 1] + frequencies[i] / total_frequency
+    end
+
+    cumulative_probabilities
+  end
+end
+
 class CategoricalDistribution
   extend Forwardable
 

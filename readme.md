@@ -1,22 +1,21 @@
 # Reinforce
 
-TODO: Delete this and the text below, and describe your gem
+This is my Reinforcement Learning (RL) library.
 
-Welcome to your new gem\! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/reinforce`. To experiment with that code, run `bin/console` for an interactive prompt.
+At the moment, it is simply a personal playground that I set up to learn some technical and/or implementation details of RL algorithms. I hope that in time it could grow and become a mature product.
 
 [![Development Status](https://github.com/mtortonesi/reinforce/workflows/Test/badge.svg)](https://github.com/mtortonesi/reinforce/actions?workflow=Test)
 
 ## Installation
 
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_PRIOR_TO_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
+Install the gem and add to the application's Gemfile (or gems.rb) by executing:
 
-Install the gem and add to the application's Gemfile by executing:
-
-    $ bundle add UPDATE_WITH_YOUR_GEM_NAME_PRIOR_TO_RELEASE_TO_RUBYGEMS_ORG
+    $ bundle add reinforce
 
 If bundler is not being used to manage dependencies, install the gem by executing:
 
-    $ gem install UPDATE_WITH_YOUR_GEM_NAME_PRIOR_TO_RELEASE_TO_RUBYGEMS_ORG
+    $ gem install reinforce
+
 
 ## Usage
 

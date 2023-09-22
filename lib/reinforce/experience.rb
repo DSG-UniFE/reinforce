@@ -25,6 +25,23 @@ module Reinforce
       @history[:done] << done
     end
 
+    def [](symbol)
+      case symbol
+      when :states
+        states
+      when :actions
+        actions
+      when :next_states
+        next_states
+      when :rewards
+        rewards
+      when :dones
+        dones
+      else
+        raise ArgumentError, "Unknown symbol #{symbol}"
+      end
+    end
+
     def states
       @history[:next_stat]
     end

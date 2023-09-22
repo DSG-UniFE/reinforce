@@ -5,7 +5,7 @@
 # Copyright, 2023, by Mauro Tortonesi.
 
 require_relative '../lib/reinforce/q_function_ann'
-require_relative '../lib/reinforce/algorithms/sarsa'
+require_relative '../lib/reinforce/algorithms/dqn'
 require_relative '../lib/reinforce/environments/gridworld'
 require 'torch'
 require 'forwardable'
@@ -27,9 +27,10 @@ max_actions_per_episode = 100
 
 # Create the Q function: we are using a neural network model for it
 q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
+q_function_model_target = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
 
 # Create the agent
-agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model)
+agent = Reinforce::Algorithms::DQN.new(environment, q_function_model, q_function_model_target)
 
 # Train the agent
 agent.train(episodes, max_actions_per_episode)

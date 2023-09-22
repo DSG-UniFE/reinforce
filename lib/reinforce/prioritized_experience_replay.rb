@@ -14,7 +14,7 @@ module Reinforce
     end
 
     def reset
-      @experience = { state: [], action: [], next_state: [], reward: [], done: [] }
+      @experience = no_experience
     end
 
     def size
@@ -39,15 +39,19 @@ module Reinforce
 
     def sample(size = 1)
       dist = CategoricalDistributionFactory.create_from_frequencies(@experience[:reward])
-      ret = size.times.map do
-        idx = dist.sample
-        [@experience[:state][idx],
-         @experience[:action][idx],
-         @experience[:next_state][idx],
-         @experience[:reward][idx],
-         @experience[:done][idx]]
+      size.times.map { dist.sample }.each_with_object(no_experience) do |idx, exp|
+        exp[:state] << @experience[:state][idx]
+        exp[:action] << @experience[:action][idx]
+        exp[:next_state] << @experience[:next_state][idx]
+        exp[:reward] << @experience[:reward][idx]
+        exp[:done] << @experience[:done][idx]
       end
-      size == 1 ? ret.first : ret
+    end
+
+    private
+
+    def no_experience
+      { state: [], action: [], next_state: [], reward: [], done: [] }
     end
   end
 end

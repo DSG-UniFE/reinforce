@@ -42,14 +42,14 @@ module Reinforce
     end
 
     def update(experience)
-      next_actions = experience[:next_states].map do |next_state|
+      next_actions = experience[:next_state].map do |next_state|
         # Need to tell Torch not to track the gradient for these operations.
         # See L. Graesser, W.L. Keng, "Foundations of Deep Reinforcement
         # Learning", Section 3.5.2, page 70.
         Torch.no_grad { forward(next_state).argmax.to_i }
       end
       target_actions = next_actions
-                       .zip(experience[:rewards], experience[:dones]).map do |next_action, reward, done|
+                       .zip(experience[:reward], experience[:done]).map do |next_action, reward, done|
         if done
           reward
         else

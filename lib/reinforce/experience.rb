@@ -3,8 +3,13 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
+require 'forwardable'
+
 module Reinforce
   class Experience
+    extend Forwardable
+    def_delegators :@history, :[]
+
     def initialize
       reset
     end
@@ -25,41 +30,41 @@ module Reinforce
       @history[:done] << done
     end
 
-    def [](symbol)
-      case symbol
-      when :states
-        states
-      when :actions
-        actions
-      when :next_states
-        next_states
-      when :rewards
-        rewards
-      when :dones
-        dones
-      else
-        raise ArgumentError, "Unknown symbol #{symbol}"
-      end
-    end
+    # def [](symbol)
+    #   case symbol
+    #   when :state
+    #     states
+    #   when :action
+    #     actions
+    #   when :next_state
+    #     next_states
+    #   when :reward
+    #     rewards
+    #   when :done
+    #     dones
+    #   else
+    #     raise ArgumentError, "Unknown symbol #{symbol}"
+    #   end
+    # end
 
-    def states
-      @history[:next_stat]
-    end
+    # def states
+    #   @history[:next_state]
+    # end
 
-    def actions
-      @history[:action]
-    end
+    # def actions
+    #   @history[:action]
+    # end
 
-    def next_states
-      @history[:next_state]
-    end
+    # def next_states
+    #   @history[:next_state]
+    # end
 
-    def rewards
-      @history[:reward]
-    end
+    # def rewards
+    #   @history[:reward]
+    # end
 
-    def dones
-      @history[:done]
-    end
+    # def dones
+    #   @history[:done]
+    # end
   end
 end

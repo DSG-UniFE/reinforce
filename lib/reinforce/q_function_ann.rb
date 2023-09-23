@@ -58,7 +58,7 @@ module Reinforce
       end
       criterion = Torch::NN::MSELoss.new
       @optimizer.zero_grad
-      experience_actions = experience[:actions]
+      experience_actions = experience[:action]
       warn "target_actions: #{target_actions.inspect}"
       warn "experience_actions: #{experience_actions.inspect}"
       loss = criterion.call(Torch::Tensor.new(target_actions), Torch::Tensor.new(experience_actions))

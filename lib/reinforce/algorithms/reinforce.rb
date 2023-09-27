@@ -52,6 +52,16 @@ module Reinforce
         loss
       end
 
+      # save the model at a given path
+      def save(path)
+        @model.save(path)
+      end
+      
+      # load the model at the given path
+      def load(path)
+        @model.load(path)
+      end
+  
       private
 
       def calculate_discounted_rewards(rewards)

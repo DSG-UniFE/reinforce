@@ -22,6 +22,7 @@ num_actions = environment.actions.size
 # Parameters
 learning_rate = 0.01
 discount_factor = 0.7
+epsilon = 0.5
 episodes = 5000
 max_actions_per_episode = 100
 
@@ -29,7 +30,7 @@ max_actions_per_episode = 100
 q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
 
 # Create the agent
-agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model)
+agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon)
 
 # Train the agent
 agent.train(episodes, max_actions_per_episode)

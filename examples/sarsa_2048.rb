@@ -24,22 +24,22 @@ puts "State size #{state_size}, action_size: #{num_actions}"
 # Parameters
 learning_rate = 0.01
 discount_factor = 0.7
-episodes = 50_000
+epsilon = 0.2
+episodes = 5_000
 max_actions_per_episode = 100
 
 # Create the Q function: we are using a neural network model for it
 q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
 
 # Create the agent
-agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model)
+agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon)
 
 # Train the agent
 agent.train(episodes, max_actions_per_episode)
 
 puts "Training done! Start the exploitation"
 
-q_function_model.save('2048_network.pth')
-
+agent.save('2048_network_rev2.pth')
 
 state_size = environment.state_size
 # up, down, right, left (is there really a difference?)
@@ -61,16 +61,19 @@ begin
     state = environment.reset
     j = 1
     loop do
-      #puts "Episode #{i} - action #{j}"
       # Choose an action
       action = agent.choose_action(state)
+      #puts "Action: #{action}" 
       # Take the action and observe the next state and reward
       next_state, reward, done = environment.step(action)
       # Update the agent
       state = next_state
+
       j += 1
+      #environment.render($stdout)
+      #sleep(0.5)
       puts "done!" if done
-      break if done # Reached the goal state
+      break if done  # Reached the goal state
     end
     environment.render($stdout)
     avg_score << environment.score

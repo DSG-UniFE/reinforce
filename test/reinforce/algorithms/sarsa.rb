@@ -13,4 +13,12 @@ describe Reinforce::Algorithms::SARSA do
   it 'can be instantiated' do
     expect(agent).not.to be_nil
   end
+
+  it 'can be saved' do
+    expect(agent).to respond_to(:save)
+  end
+  
+  it 'can be loaded' do
+    expect(agent).to respond_to(:load)
+  end
 end

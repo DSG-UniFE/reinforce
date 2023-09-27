@@ -48,6 +48,7 @@ module Reinforce
         # Learning", Section 3.5.2, page 70.
         Torch.no_grad { forward(next_state).argmax.to_i }
       end
+
       target_actions = next_actions
                        .zip(experience[:reward], experience[:done]).map do |next_action, reward, done|
         if done
@@ -56,6 +57,7 @@ module Reinforce
           reward + @discount_factor * next_action
         end
       end
+
       criterion = Torch::NN::MSELoss.new
       @optimizer.zero_grad
       experience_actions = experience[:action]
@@ -85,14 +87,15 @@ module Reinforce
       # Load the new parameters
       @architecture.load_state_dict(new_params)
     end
-  end
 
-  def save(path)
-    Torch.save(@architecture.state_dict, path)
-  end
+    def save(path)
+      Torch.save(@architecture.state_dict, path)
+    end
 
-  def load(path)
-    @architecture.load_state_dict(Torch.load(path))
-    @architecture.eval
+    def load(path)
+      @architecture.load_state_dict(Torch.load(path))
+      @architecture.eval
+    end
+
   end
 end

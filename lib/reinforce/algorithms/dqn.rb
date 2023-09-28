@@ -21,7 +21,7 @@ module Reinforce
         @prioritized_experience_replay = PrioritizedExperienceReplay.new
         # tau is the Polyak averaging parameter, it should be between 0 and 1
         @tau = 1.0
-        @initial_epsilon = espilon  
+        @initial_epsilon = epsilon
         @training_start = 1000
         @update_frequency_for_q = 100
         @update_frequency_for_q_target = 500

@@ -13,7 +13,7 @@ module Reinforce
     # This class implements a Reinforcement Learning agent that uses the
     # Deep Q Network algorithm.
     class DQN
-      def initialize(environment, q_function_model, q_function_model_target)
+      def initialize(environment, q_function_model, q_function_model_target, epsilon = 0.9)
         @environment = environment
         @q_function_model = q_function_model
         @q_function_model_target = q_function_model_target
@@ -21,7 +21,7 @@ module Reinforce
         @prioritized_experience_replay = PrioritizedExperienceReplay.new
         # tau is the Polyak averaging parameter, it should be between 0 and 1
         @tau = 1.0
-        @initial_epsilon = 0.001
+        @initial_epsilon = espilon  
         @training_start = 1000
         @update_frequency_for_q = 100
         @update_frequency_for_q_target = 500

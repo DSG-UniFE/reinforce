@@ -22,7 +22,7 @@ module Reinforce
 
       # set a default value for epsilon = 0.0 if not provided
       # is epsilon == 0.0 the agent will always choose the greedy action
-      def choose_action(state, epsilon = 0.0)
+      def choose_action(state, epsilon = 0)
         # Choose action according to the policy, with epsilon greedy algorithm
         # for governing the exploration / exploitation trade-off.
         if epsilon > rand
@@ -49,7 +49,6 @@ module Reinforce
         # value and decays over the training process to reach zero at the end
         # of it.
         epsilon = @initial_epsilon
-        warn "epsilon: #{epsilon}"
 
         # Training loop
         1.upto(num_episodes) do |episode_number|

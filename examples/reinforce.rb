@@ -86,9 +86,22 @@ end
 
 # Print the learned policy
 puts 'Learned Policy'
+2.times do |i|
+  warn "Starting episode #{i}"
+  state = environment.reset
+  loop do
+    action = agent.choose_action(Torch::Tensor.new(state))
+    state, _, done = environment.step(action)
+    warn "State: #{state} Action: #{action} Done: #{done}}"
+    break if done
+  end
+end
+=begin
+puts 'Learned Policy'
 (0...size).each do |i|
   (0...size).each do |j|
     action = agent.choose_action(Torch::Tensor.new([i, j]))
     puts "State [#{i},#{j}]: Action #{action}"
   end
 end
+=end

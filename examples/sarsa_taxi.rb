@@ -6,25 +6,24 @@
 
 require_relative '../lib/reinforce/q_function_ann'
 require_relative '../lib/reinforce/algorithms/sarsa'
-require_relative '../lib/reinforce/environments/gridworld'
+require_relative '../lib/reinforce/environments/taxi'
 require 'torch'
 require 'forwardable'
 
 # Create the environment
-size = 20
-start = [0, 0]
-goal = [size - 1, size - 1]
-obstacles = Array.new(10) { |_| [1 + rand(size - 2), 1 + rand(size - 2)] }
-environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacles)
-state_size = environment.state_size
+environment = Reinforce::Environments::Taxi.new
+state_size = environment.state.size
 num_actions = environment.actions.size
 
 # Parameters
+# Train the agent
 learning_rate = 0.01
 discount_factor = 0.7
-epsilon = 0.5
-episodes = 1000
+episodes = 5_000
 max_actions_per_episode = 100
+epsilon = 0.2
+
+warn "State size: #{state_size} actions: #{num_actions}"
 
 # Create the Q function: we are using a neural network model for it
 q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
@@ -35,20 +34,14 @@ agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon)
 # Train the agent
 agent.train(episodes, max_actions_per_episode)
 
+
 # Print the learned policy
-puts 'Learned Policy'
 state = environment.reset
-100.times do
-  action = agent.choose_action(state, 0)
-  puts "State #{state}: Action #{action}"
-  state, _, done = environment.step(action)
-  break if done
+puts 'Learned Policy'
+150.times do |_|
+    action = agent.choose_action(state)
+    puts "Action: #{environment.actions[action]}"
+    state, reward, done = environment.step(action)
+    environment.render
+    break if done
 end
-=begin
-(0...size).each do |i|
-  (0...size).each do |j|
-    action = agent.choose_action(Torch::Tensor.new([i, j]), 0)
-    puts "State [#{i},#{j}]: Action #{action}"
-  end
-end
-=end

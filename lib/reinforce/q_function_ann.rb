@@ -42,29 +42,45 @@ module Reinforce
     end
 
     def update(experience)
-      next_actions = experience[:next_state].map do |next_state|
-        # Need to tell Torch not to track the gradient for these operations.
-        # See L. Graesser, W.L. Keng, "Foundations of Deep Reinforcement
-        # Learning", Section 3.5.2, page 70.
-        Torch.no_grad { forward(next_state).argmax.to_i }
+      # Need to tell Torch not to track the gradient for these operations.
+      # See L. Graesser, W.L. Keng, "Foundations of Deep Reinforcement
+      # Learning", Section 3.5.2, page 70.
+      next_q_values = Torch.no_grad { forward(experience[:next_state]) }
+      # use argmax to select next_actions
+      next_actions = next_q_values.argmax(1)
+      # compute target actions
+      # here we need to create first a tensor of zeros to keep the dimensions and types
+      # of the other tensors.
+      target_actions = Torch.zeros(experience[:action].size)
+      next_actions.zip(experience[:reward], experience[:done]).each_with_index do |(next_action, reward, done), i|
+        if done
+          target_actions[i] = reward
+        else
+          target_actions[i] = reward + @discount_factor * next_q_values[i][next_action]
+        end
       end
 
-      target_actions = next_actions
-                       .zip(experience[:reward], experience[:done]).map do |next_action, reward, done|
-        if done
-          reward
-        else
-          reward + @discount_factor * next_action
-        end
+      # Compute the loss
+      # First, we need to extract the q values for the actions taken_q_values
+      # from the predicted q values. Here we need a Tensor as well to call backward
+      # on loss.
+      predicted_q_values = forward(experience[:state])
+      taken_q_values = Torch.zeros(experience[:action].size)
+      taken_q_values.zip(experience[:action]).each_with_index do |(_, action), i|
+        taken_q_values[i] = predicted_q_values[i][action]
       end
 
       criterion = Torch::NN::MSELoss.new
       @optimizer.zero_grad
-      experience_actions = experience[:action]
+      # Some debugging. Comment if not needed.
       warn "target_actions: #{target_actions.inspect}"
-      warn "experience_actions: #{experience_actions.inspect}"
-      loss = criterion.call(Torch::Tensor.new(target_actions), Torch::Tensor.new(experience_actions))
-      @optimizer.step(proc { loss })
+      warn "taken_q_values: #{taken_q_values.inspect}"
+      # Calculate the loss
+      loss = criterion.call(taken_q_values, Torch::Tensor.new(target_actions))
+      # Backpropagate the loss
+      loss.backward
+      # Update the weights
+      @optimizer.step
     end
 
     def soft_update(q_network, tau)

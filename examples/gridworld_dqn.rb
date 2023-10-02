@@ -22,10 +22,10 @@ num_actions = environment.actions.size
 # Parameters
 learning_rate = 0.01
 discount_factor = 0.7
-episodes = 1000
+episodes = 250
 max_actions_per_episode = 100
 
-# Create the Q function: we are using a neural network model for it
+# Create the Q function: we are using a neural network model for i
 q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
 q_function_model_target = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
 
@@ -34,12 +34,16 @@ agent = Reinforce::Algorithms::DQN.new(environment, q_function_model, q_function
 
 # Train the agent
 agent.train(episodes, max_actions_per_episode)
-
+agent.save('gridworld_dqn.pth')
 # Print the learned policy
 puts 'Learned Policy'
-(0...size).each do |i|
-  (0...size).each do |j|
-    action = agent.choose_action(Torch::Tensor.new([i, j]))
-    puts "State [#{i},#{j}]: Action #{action}"
-  end
+state = environment.reset 
+100.times do
+  action = agent.choose_action(state) 
+  state, _, done = environment.step(action)
+  warn "State: #{state}, Action: #{action}"
+  if done
+    warn 'Goal reached!'
+    break
+  end 
 end

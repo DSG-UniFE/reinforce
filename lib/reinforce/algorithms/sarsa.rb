@@ -52,26 +52,28 @@ module Reinforce
 
         # Training loop
         1.upto(num_episodes) do |episode_number|
-          puts "Episode: #{episode_number}"
+          puts "Episode: #{episode_number} epsilon: #{epsilon}"
           # Reset the environment
           state = @environment.reset
 
+          action = choose_action(state, epsilon)
           # Setup number of actions to take before updating the Q function
-          actions_left = batch_size
+          actions_left = batch_size - 1
 
           # Episode loop
           loop do
             # Choose an action
-            action = choose_action(state, epsilon)
 
             # Take the action and observe the next state and reward
             next_state, reward, done = @environment.step(action)
             actions_left -= 1
 
+            next_action = choose_action(state, epsilon)
             # Update the agent
-            @experience.update(state, action, next_state, reward, done)
-
+            @experience.update(state.dup, action, next_state.dup, next_action, reward, done)
+            
             state = next_state
+            action = next_action
 
             break if done || actions_left.zero? # Reached the goal state
           end

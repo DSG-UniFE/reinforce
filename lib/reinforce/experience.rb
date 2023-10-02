@@ -15,17 +15,18 @@ module Reinforce
     end
 
     def reset
-      @history = { state: [], action: [], next_state: [], reward: [], done: [] }
+      @history = { state: [], action: [], next_state: [], next_action: [], reward: [], done: [] }
     end
 
     def history_size
       @history[:state].size
     end
 
-    def update(state, action, next_state, reward, done)
+    def update(state, action, next_state, next_action, reward, done)
       @history[:state] << state
       @history[:action] << action
       @history[:next_state] << next_state
+      @history[:next_action] << next_action
       @history[:reward] << reward
       @history[:done] << done
     end

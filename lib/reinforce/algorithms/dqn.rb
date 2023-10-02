@@ -111,18 +111,19 @@ module Reinforce
           epsilon = @initial_epsilon * (num_episodes - episode_number) / num_episodes
         end
 
-        # Save the model after training_start
+      end     
+      
+    # Save the model after training_start
 
-        def save(path)
-          @q_function_model.save(path)
-        end
+      def save(path)
+        @q_function_model.save(path)
+      end
         
         # load the model if a file already exists
-        def load(path)
-          @q_function_model.load(path)
-        end
-
+      def load(path)
+        @q_function_model.load(path)
       end
+
     end
   end
 end

@@ -76,6 +76,8 @@ module Reinforce
                       'G '
                     elsif @obstacles.include?([i, j])
                       'X '
+                    elsif @state == [i, j]
+                      'A '
                     else
                       '_ '
                     end

@@ -12,7 +12,7 @@ require 'forwardable'
 
 # Create the environment
 environment = Reinforce::Environments::Taxi.new
-state_size = environment.state.size
+state_size = environment.state_size
 num_actions = environment.actions.size
 
 # Parameters
@@ -21,7 +21,7 @@ learning_rate = 0.01
 discount_factor = 0.7
 episodes = 5_000
 max_actions_per_episode = 100
-epsilon = 0.2
+epsilon = 0.6
 
 warn "State size: #{state_size} actions: #{num_actions}"
 
@@ -38,10 +38,13 @@ agent.train(episodes, max_actions_per_episode)
 # Print the learned policy
 state = environment.reset
 puts 'Learned Policy'
-150.times do |_|
+100.times do |_|
     action = agent.choose_action(state)
     puts "Action: #{environment.actions[action]}"
-    state, reward, done = environment.step(action)
+    state, _, done = environment.step(action)
     environment.render
-    break if done
+    if done
+      puts "Task Completed!"
+      break
+    end
 end

@@ -23,7 +23,7 @@ num_actions = environment.actions.size
 learning_rate = 0.01
 discount_factor = 0.7
 episodes = 250
-max_actions_per_episode = 100
+max_actions_per_episode = 200
 
 # Create the Q function: we are using a neural network model for i
 q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
@@ -41,7 +41,7 @@ state = environment.reset
 100.times do
   action = agent.choose_action(state) 
   state, _, done = environment.step(action)
-  warn "State: #{state}, Action: #{action}"
+  environment.render($stdout)
   if done
     warn 'Goal reached!'
     break

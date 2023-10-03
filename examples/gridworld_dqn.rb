@@ -11,10 +11,10 @@ require 'torch'
 require 'forwardable'
 
 # Create the environment
-size = 20
+size = 10
 start = [0, 0]
 goal = [size - 1, size - 1]
-obstacles = Array.new(10) { |_| [1 + rand(size - 2), 1 + rand(size - 2)] }
+obstacles = Array.new(5) { |_| [1 + rand(size - 2), 1 + rand(size - 2)] }
 environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacles)
 state_size = environment.state_size
 num_actions = environment.actions.size
@@ -23,7 +23,7 @@ num_actions = environment.actions.size
 learning_rate = 0.01
 discount_factor = 0.7
 episodes = 1250
-max_actions_per_episode = 200
+max_actions_per_episode = 150
 
 # Create the Q function: we are using a neural network model for i
 q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
@@ -38,7 +38,7 @@ agent.save('gridworld_dqn.pth')
 # Print the learned policy
 puts 'Learned Policy'
 state = environment.reset 
-200.times do
+max_actions_per_episode.times do
   action = agent.choose_action(state) 
   state, _, done = environment.step(action)
   environment.render($stdout)

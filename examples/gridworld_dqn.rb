@@ -22,7 +22,7 @@ num_actions = environment.actions.size
 # Parameters
 learning_rate = 0.01
 discount_factor = 0.7
-episodes = 250
+episodes = 1250
 max_actions_per_episode = 200
 
 # Create the Q function: we are using a neural network model for i
@@ -38,7 +38,7 @@ agent.save('gridworld_dqn.pth')
 # Print the learned policy
 puts 'Learned Policy'
 state = environment.reset 
-100.times do
+200.times do
   action = agent.choose_action(state) 
   state, _, done = environment.step(action)
   environment.render($stdout)

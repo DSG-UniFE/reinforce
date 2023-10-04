@@ -57,7 +57,7 @@ module Reinforce
         # of it.
         epsilon = @initial_epsilon
 
-        minibatch_size = 100
+        minibatch_size = 64
         global_step = 0
 
 

@@ -20,9 +20,7 @@ module Reinforce
         @experience = ::Reinforce::Experience.new
       end
 
-      # set a default value for epsilon = 0.0 if not provided
-      # is epsilon == 0.0 the agent will always choose the greedy action
-      def choose_action(state, epsilon = 0)
+      def choose_action(state, epsilon)
         # Choose action according to the policy, with epsilon greedy algorithm
         # for governing the exploration / exploitation trade-off.
         if epsilon > rand
@@ -34,6 +32,11 @@ module Reinforce
           # Return greedy action from the distribution
           CategoricalDistribution.new(logits: logits.to_a).greedy
         end
+      end
+
+      def predict(state)
+        # Return the action to be taken according to the policy learnt
+        @q_function_model.get_action(state)
       end
 
       # Train the agent.

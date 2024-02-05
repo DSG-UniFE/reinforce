@@ -22,7 +22,7 @@ num_actions = environment.actions.size
 # Parameters
 learning_rate = 0.01
 discount_factor = 0.7
-episodes = 1250
+episodes = 5000
 max_actions_per_episode = 150
 
 # Create the Q function: we are using a neural network model for i

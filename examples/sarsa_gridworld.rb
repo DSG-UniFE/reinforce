@@ -41,7 +41,7 @@ puts 'Learned Policy'
   puts '----------------'
   state = environment.reset
   max_actions_per_episode.times do
-    action = agent.choose_action(state, 0)
+    action = agent.predict(state)
     state, _, done = environment.step(action)
     environment.render($stdout)
     if done

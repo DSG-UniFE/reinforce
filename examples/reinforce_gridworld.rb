@@ -91,7 +91,7 @@ puts 'Learned Policy'
   state = environment.reset
   loop do
     action = agent.choose_action(Torch::Tensor.new(state))
-    state, _, done = environment.step(action)
+    state, _, done = environment.predict(action)
     warn "State: #{state} Action: #{action} Done: #{done}}"
     break if done
   end

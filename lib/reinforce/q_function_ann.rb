@@ -84,8 +84,8 @@ module Reinforce
       criterion = Torch::NN::MSELoss.new
       @optimizer.zero_grad
       # Some debugging. Comment if not needed.
-      warn "target_actions: #{target_actions.inspect}"
-      warn "taken_q_values: #{taken_q_values.inspect}"
+      #warn "target_actions: #{target_actions.inspect}"
+      #warn "taken_q_values: #{taken_q_values.inspect}"
       # Calculate the loss
       loss = criterion.call(taken_q_values, Torch::Tensor.new(target_actions))
       # Backpropagate the loss

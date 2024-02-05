@@ -24,6 +24,11 @@ module Reinforce
         @rewards = []
       end
 
+      def predict(state)
+        # Return the action to be taken according to the policy
+        @q_function_model.get_action(state)
+      end
+
       def choose_action(state)
         # Obtain the log probabilities of each action from the model
         logits = @model.forward(state)

@@ -62,7 +62,7 @@ begin
     j = 1
     loop do
       # Choose an action
-      action = agent.choose_action(state)
+      action = agent.predict(state)
       #puts "Action: #{action}" 
       # Take the action and observe the next state and reward
       next_state, reward, done = environment.step(action)

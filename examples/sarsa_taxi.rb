@@ -39,7 +39,7 @@ agent.train(episodes, max_actions_per_episode)
 state = environment.reset
 puts 'Learned Policy'
 100.times do |_|
-    action = agent.choose_action(state)
+    action = agent.predict(state)
     puts "Action: #{environment.actions[action]}"
     state, _, done = environment.step(action)
     environment.render

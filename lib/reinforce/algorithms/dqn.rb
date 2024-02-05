@@ -113,7 +113,7 @@ module Reinforce
 
       def predict(state)
         # Return the action to be taken according to the policy
-        retrun @q_function_model.get_action(state)
+        @q_function_model.get_action(state)
       end
       
     # Save the model after training_start

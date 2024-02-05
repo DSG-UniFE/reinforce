@@ -37,6 +37,17 @@ module Reinforce
       @architecture.forward(argument)
     end
 
+    def get_action(state)
+      argument = if state.is_a?(Torch::Tensor)
+                    state
+                  else
+                    Torch::Tensor.new(state)
+                  end
+      logits = Torch.no_grad { forward(argument) }
+      CategoricalDistribution.new(logits: logits.to_a).greedy
+    end 
+
+
     def random_action(_state)
       rand(@num_actions)
     end

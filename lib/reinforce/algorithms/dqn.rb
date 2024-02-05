@@ -27,9 +27,7 @@ module Reinforce
         @update_frequency_for_q_target = 500
       end
 
-      # set a default value for epsilon= 0.0 if not provided
-      # this is just to exploit the agent's policy      
-      def choose_action(state, epsilon = 0.0)
+      def choose_action(state, epsilon)
         # Choose action according to the policy, with epsilon greedy algorithm
         # for governing the exploration / exploitation trade-off.
         if epsilon > rand
@@ -112,6 +110,11 @@ module Reinforce
         end
 
       end     
+
+      def predict(state)
+        # Return the action to be taken according to the policy
+        retrun @q_function_model.get_action(state)
+      end
       
     # Save the model after training_start
 

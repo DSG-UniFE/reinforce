@@ -11,7 +11,7 @@ require 'torch'
 require 'forwardable'
 
 # Create the environment
-size = 10
+size = 20
 start = [0, 0]
 goal = [size - 1, size - 1]
 obstacles = Array.new(5) { |_| [1 + rand(size - 2), 1 + rand(size - 2)] }
@@ -39,7 +39,7 @@ agent.save('gridworld_dqn.pth')
 puts 'Learned Policy'
 state = environment.reset 
 max_actions_per_episode.times do
-  action = agent.choose_action(state) 
+  action = agent.predict(state) 
   state, _, done = environment.step(action)
   environment.render($stdout)
   if done

@@ -21,7 +21,7 @@ learning_rate = 0.01
 discount_factor = 0.7
 episodes = 5_000
 max_actions_per_episode = 100
-epsilon = 0.6
+epsilon = 0.9
 
 warn "State size: #{state_size} actions: #{num_actions}"
 
@@ -34,6 +34,8 @@ agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon)
 # Train the agent
 agent.train(episodes, max_actions_per_episode)
 
+# Save the model
+agent.save('taxi_sarsa.pth')
 
 # Print the learned policy
 state = environment.reset

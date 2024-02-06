@@ -14,7 +14,7 @@ require 'forwardable'
 size = 10
 start = [0, 0]
 goal = [size - 1, size - 1]
-obstacles = Array.new(5) { |_| [1 + rand(size - 2), 1 + rand(size - 2)] }
+obstacles = 5
 environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacles)
 state_size = environment.state_size
 num_actions = environment.actions.size
@@ -22,7 +22,7 @@ num_actions = environment.actions.size
 # Parameters
 learning_rate = 0.01
 discount_factor = 0.7
-epsilon = 0.5
+epsilon = 0.6
 episodes = 5000
 max_actions_per_episode = 150
 
@@ -34,6 +34,9 @@ agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon)
 
 # Train the agent
 agent.train(episodes, max_actions_per_episode)
+
+# Save the model
+agent.save('gridworld_sarsa.pth')
 
 # Print the learned policy
 puts 'Learned Policy'

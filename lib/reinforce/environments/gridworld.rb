@@ -8,16 +8,20 @@ module Reinforce
     class GridWorld
       ACTIONS = %i[up down left right].freeze
       attr_reader :state
+      #srand(0)
 
-      def initialize(size, start, goal, obstacles)
+      def initialize(size, start, goal, obstacles_num = 5)
         @size = size
         @start = start
         @goal = goal
-        @obstacles = obstacles
+        @obstacles_num = obstacles_num
+        # TODO: Check if we can remove the following line
+        @obstacles = Array.new(@obstacles_num) { |_| [1 + rand(@size - 2), 1 + rand(@size - 2)] }
         @state = @start.dup
       end
 
       def reset
+        @obstacles = Array.new(@obstacles_num) { |_| [1 + rand(@size - 2), 1 + rand(@size - 2)] }
         @state = @start.dup
       end
 
@@ -50,6 +54,9 @@ module Reinforce
 
         if @obstacles.include?(next_state)
           next_state = @state.dup  # Stay in the same state if moving into an obstacle
+          reward = -1
+        # if the agent did not move
+        elsif next_state == @state
           reward = -1
         elsif next_state == @goal
           done = true

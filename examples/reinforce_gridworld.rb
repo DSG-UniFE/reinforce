@@ -13,7 +13,7 @@ require 'forwardable'
 size = 20
 start = [0, 0]
 goal = [size - 1, size - 1]
-obstacles = Array.new(10) { |_| [1 + rand(size - 2), 1 + rand(size - 2)] }
+obstacles = 5
 environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacles)
 state_size = environment.state_size
 num_actions = environment.actions.size

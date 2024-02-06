@@ -65,7 +65,7 @@ module Reinforce
         # Here we are trying to give the agent an incentive to move towards the distance_to_goal
         # otherwise, the agent will just stay in the same state and collect the reward
         distance_to_goal = (@goal[0] - next_state[0]).abs + (@goal[1] - next_state[1]).abs
-        reward = -distance_to_goal if reward < 1
+        reward += -distance_to_goal if reward < 1
 
         @state = next_state
 

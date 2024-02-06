@@ -22,8 +22,8 @@ num_actions = environment.actions.size
 # Parameters
 learning_rate = 0.01
 discount_factor = 0.7
-epsilon = 0.6
-episodes = 5000
+epsilon = 0.8
+episodes = 20_000
 max_actions_per_episode = 150
 
 # Create the Q function: we are using a neural network model for it
@@ -40,12 +40,13 @@ agent.save('gridworld_sarsa.pth')
 
 # Print the learned policy
 puts 'Learned Policy'
-5.times do
+1.times do
   puts '----------------'
   state = environment.reset
   max_actions_per_episode.times do
     action = agent.predict(state)
-    state, _, done = environment.step(action)
+    state, reward, done = environment.step(action)
+    puts "Action: #{environment.actions[action]}"
     environment.render($stdout)
     if done
       puts 'Goal reached!'

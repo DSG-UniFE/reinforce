@@ -4,3 +4,5 @@
 /.covered.db
 /external
 *.pth
+.ruby-version
+/.vendor/

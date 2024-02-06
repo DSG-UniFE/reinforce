@@ -5,4 +5,4 @@
 /external
 *.pth
 .ruby-version
-/.vendor/
+/vendor/

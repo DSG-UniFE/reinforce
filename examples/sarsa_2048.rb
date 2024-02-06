@@ -12,10 +12,7 @@ require 'forwardable'
 
 # Create the environment
 environment = Reinforce::Environments::Game2048.new()
-
 state_size = environment.state_size
-size = 4 # board size is 4, meaning that I would have a 4x4 board
-
 # up, down, right, left (is there really a difference?)
 num_actions = environment.actions.size
 
@@ -24,9 +21,9 @@ puts "State size #{state_size}, action_size: #{num_actions}"
 # Parameters
 learning_rate = 0.01
 discount_factor = 0.7
-epsilon = 0.2
-episodes = 5_000
-max_actions_per_episode = 100
+epsilon = 0.8
+episodes = 15_000
+max_actions_per_episode = 500
 
 # Create the Q function: we are using a neural network model for it
 q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
@@ -59,8 +56,7 @@ begin
   1.upto(5) do |i|
     puts "Episode #{i}"
     state = environment.reset
-    j = 1
-    loop do
+    max_actions_per_episode.times do |i|
       # Choose an action
       action = agent.predict(state)
       #puts "Action: #{action}" 
@@ -69,11 +65,12 @@ begin
       # Update the agent
       state = next_state
 
-      j += 1
       #environment.render($stdout)
       #sleep(0.5)
-      puts "done!" if done
-      break if done  # Reached the goal state
+      if done
+        puts "Episode ended after #{i} steps"
+        break
+      end 
     end
     environment.render($stdout)
     avg_score << environment.score

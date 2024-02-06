@@ -10,7 +10,7 @@ require 'torch'
 require 'forwardable'
 
 # Create the environment
-size = 20
+size = 10
 start = [0, 0]
 goal = [size - 1, size - 1]
 obstacles = 5
@@ -23,8 +23,8 @@ num_actions = environment.actions.size
 # Parameters
 learning_rate = 0.01
 discount_factor = 0.99
-episodes = 400
-max_actions_per_episode = 500
+episodes = 5000
+max_actions_per_episode = 150
 
 # input to the network is the current state
 # output of the network is the log probabilities of each action
@@ -89,19 +89,13 @@ puts 'Learned Policy'
 2.times do |i|
   warn "Starting episode #{i}"
   state = environment.reset
-  loop do
-    action = agent.choose_action(Torch::Tensor.new(state))
-    state, _, done = environment.predict(action)
-    warn "State: #{state} Action: #{action} Done: #{done}}"
-    break if done
+  max_actions_per_episode.times do
+    action = agent.predict(Torch::Tensor.new(state))
+    state, _, done = environment.step(action)
+    #warn "State: #{state} Action: #{action} Done: #{done}"
+    if done
+      puts 'Goal reached!'
+      break
+    end
   end
 end
-=begin
-puts 'Learned Policy'
-(0...size).each do |i|
-  (0...size).each do |j|
-    action = agent.choose_action(Torch::Tensor.new([i, j]))
-    puts "State [#{i},#{j}]: Action #{action}"
-  end
-end
-=end

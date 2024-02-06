@@ -38,7 +38,7 @@ puts 'Learned Policy'
   max_actions_per_episode.times do
     action = agent.predict(state)
     state, _, done = environment.step(action)
-    #environment.render($stdout)
+    environment.render($stdout)
     if done
       puts "Goal reached! Episode #{i}"
       break

@@ -25,8 +25,17 @@ module Reinforce
       end
 
       def predict(state)
-        # Return the action to be taken according to the policy
-        @q_function_model.get_action(state)
+        # Obtain the log probabilities of each action from the model
+        logits =Torch.no_grad { @model.forward(state) }
+
+        # Sample an action from the distribution
+        pd = CategoricalDistribution.new(logits: logits.to_a)
+        action = pd.sample
+
+        # Store the log probability of the action
+        @log_probs << pd.log_probability(action)
+
+        action
       end
 
       def choose_action(state)

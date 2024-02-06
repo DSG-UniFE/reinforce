@@ -46,7 +46,7 @@ describe Reinforce::Environments::GridWorld do
     gridworld.reset
     next_state, reward, done = gridworld.step(:right)
     expect(next_state).to be == [0, 1]
-    expect(reward).to be == 0
+    expect(reward).to be == -((4 - next_state[0]).abs + (4 - next_state[1]).abs)
     expect(done).to be_falsey
   end
 

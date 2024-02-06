@@ -11,14 +11,15 @@ module Reinforce
 
       def initialize(board_size = 4)
         @board_size = board_size
-        @board = Array.new(@board_size) { Array.new(@board_size, 0) }
+        @board = Array.new(@board_size) { Array.new(@board_size) {0} }
         @score = 0
         place_random_tile
         @board.flatten.dup
       end
 
       def reset
-        @board = Array.new(@board_size) { Array.new(@board_size, 0) }
+        @done = false
+        @board = Array.new(@board_size) { Array.new(@board_size) {0} }
         @score = 0
         place_random_tile
         @board.flatten.dup
@@ -35,7 +36,7 @@ module Reinforce
       def step(action)
 				action = actions[action] if action.is_a?(Integer)
         reward = 0
-        done = false
+        #done = false
 
 				current_state = @board.dup
 
@@ -77,20 +78,22 @@ module Reinforce
         end
 
         if current_state != @board 
-          @board = current_state.dup    
+          @board = current_state.dup
+        else
+          reward -= 20
         end
         # after the action is performed
         # let's add another random tile
         # check if the game is over
-        unless @board.flatten.include?(0)
-          done = true
-          warn "Episode score #{@score}"
-        else 
-         done = false 
-         place_random_tile
-        end
+        #unless @board.flatten.include?(0)
+        #  @done = true
+        #  warn "Episode score #{@score}"
+        #else 
+        #@done = false 
+        place_random_tile
+        #end
 
-        [@board.flatten.dup, reward, done]
+        [@board.flatten.dup, reward, @done]
       end
 
       def render(output_stream)
@@ -112,8 +115,38 @@ module Reinforce
 
         return if empty_cells.empty?
 
-        random_cell = empty_cells.sample
-        @board[random_cell[0]][random_cell[1]] = 2
+        unless empty_cells.empty?
+          random_cell = empty_cells.sample
+          @board[random_cell[0]][random_cell[1]] = [2, 4].sample
+        end
+        check_game_over
+      end
+
+      def can_merge_tiles?
+        # Check for horizontal merges
+        @board.each do |row|
+          row.each_cons(2) do |a, b|
+            return true if a == b
+          end
+        end
+        # Check for vertical merges
+        @board.transpose.each do |col|
+          col.each_cons(2) do |a, b|
+            return true if a == b
+          end
+        end
+      
+        false # No possible merges found
+      end
+
+      # Add this method to check for game over condition
+      def check_game_over
+        if !@board.flatten.include?(0) && !can_merge_tiles?
+          @done = true
+          warn "Game Over. Final score: #{@score}"
+        else
+          @done = false
+        end
       end
 
       def transpose(matrix)

@@ -15,7 +15,7 @@ module Reinforce
       reset
     end
 
-    def reset 
+    def reset
       @pos = 0
       @count = 0
       @experience = no_experience

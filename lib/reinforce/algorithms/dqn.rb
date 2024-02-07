@@ -61,7 +61,7 @@ module Reinforce
 
         # Training loop
         1.upto(num_episodes) do |episode_number|
-          puts "Episode: #{episode_number}"
+          warn "Episode: #{episode_number}"
           # Reset the environment
           state = @environment.reset
 

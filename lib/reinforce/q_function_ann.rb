@@ -88,6 +88,8 @@ module Reinforce
       #warn "taken_q_values: #{taken_q_values.inspect}"
       # Calculate the loss
       loss = criterion.call(taken_q_values, Torch::Tensor.new(target_actions))
+      # Log the loss
+      # warn "Loss: #{loss.item}"
       # Backpropagate the loss
       loss.backward
       # Update the weights

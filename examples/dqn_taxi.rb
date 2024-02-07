@@ -5,8 +5,8 @@
 # Copyright, 2023, by Mauro Tortonesi.
 
 require_relative '../lib/reinforce/q_function_ann'
-require_relative '../lib/reinforce/algorithms/sarsa'
 require_relative '../lib/reinforce/environments/taxiv2'
+require_relative '../lib/reinforce/algorithms/dqn'
 require 'torch'
 require 'forwardable'
 
@@ -20,33 +20,35 @@ num_actions = environment.actions.size
 learning_rate = 0.01
 discount_factor = 0.7
 episodes = 10_000
-max_actions_per_episode = 100
+max_actions_per_episode = 25
 epsilon = 0.8
 
 warn "State size: #{state_size} actions: #{num_actions}"
 
 # Create the Q function: we are using a neural network model for it
 q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
+q_function_model_target = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
+
 
 # Create the agent
-agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon)
+agent = Reinforce::Algorithms::DQN.new(environment, q_function_model, q_function_model_target, epsilon)
+
 
 # Train the agent
 agent.train(episodes, max_actions_per_episode)
-
 # Save the model
-agent.save('taxi_sarsa.pth')
+agent.save('taxi_dqn.pth')
 
 # Print the learned policy
 state = environment.reset
 puts 'Learned Policy'
-100.times do |_|
-    action = agent.predict(state)
-    state, reward, done = environment.step(action)
-    warn "Action: #{environment.actions[action]} reward: #{reward}"
-    environment.render
-    if done
-      puts "Task Completed!"
-      break
-    end
+max_actions_per_episode.times do |_|
+  action = agent.predict(state)
+  state, reward, done = environment.step(action)
+  puts "Action: #{environment.actions[action]}, Reward: #{reward}"
+  environment.render
+  if done
+    puts "Task Completed!"
+    break
+  end
 end

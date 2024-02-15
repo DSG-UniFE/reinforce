@@ -1,8 +1,11 @@
 /.bundle/
+/.vscode/
 /pkg/
 /gems.locked
 /.covered.db
 /external
 *.pth
+*.txt
+*.results
 .ruby-version
 /vendor/

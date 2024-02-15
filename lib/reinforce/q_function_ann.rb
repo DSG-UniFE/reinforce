@@ -12,6 +12,7 @@ module Reinforce
   class QFunctionANN
     extend Forwardable
     def_delegators :@architecture, :apply, :parameters, :state_dict, :load_state_dict
+    attr_reader :optimizer
 
     def initialize(state_size, num_actions, learning_rate, discount_factor)
       @num_actions = num_actions

@@ -56,6 +56,7 @@ module Reinforce
     end
 
     def sample(size = 1)
+      #warn "experience[:reward]: #{@experience[:reward]}"
       dist = CategoricalDistributionFactory.create_from_frequencies(@experience[:reward])
       size.times.map { dist.sample }.each_with_object(no_experience) do |idx, exp|
         exp[:state] << @experience[:state][idx]

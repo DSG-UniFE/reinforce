@@ -36,16 +36,21 @@ agent = Reinforce::Algorithms::DQN.new(environment, q_function_model, q_function
 agent.load('gridworld_dqn.pth')
 
 # Print the learned policy
-puts 'Learned Policy'
-5.times do 
+puts 'Exploiting the learned Policy'
+test_episodes = 100
+accomplished = 0
+test_episodes.times do 
   state = environment.reset 
   max_actions_per_episode.times do
     action = agent.predict(state) 
     state, _, done = environment.step(action)
-   # environment.render($stdout)
+    #environment.render($stdout)
     if done
       warn 'Goal reached!'
+      accomplished += 1
       break
     end 
   end
 end
+
+puts "Accomplished: #{accomplished}/#{test_episodes} episodes."

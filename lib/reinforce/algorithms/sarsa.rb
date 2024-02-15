@@ -55,7 +55,9 @@ module Reinforce
 
         # Training loop
         1.upto(num_episodes) do |episode_number|
-          puts "Episode: #{episode_number} epsilon: #{epsilon}"
+          #puts "Episode: #{episode_number} epsilon: #{epsilon}"
+          progress = episode_number.to_f / num_episodes * 100
+          print "\rTraining: #{progress.round(2)}%"
           # Reset the environment
           state = @environment.reset
 

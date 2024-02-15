@@ -35,6 +35,7 @@ module Reinforce
 
       def step(action)
         action = ACTIONS[action] if action.is_a?(Integer)
+       #warn "action: #{action}"
         next_state = @state.dup
         reward = 0
         done = false
@@ -59,6 +60,7 @@ module Reinforce
         elsif next_state == @state
           reward = -1
         elsif next_state == @goal
+          warn "Goal reached!"
           done = true
           reward = 1
         end

@@ -22,7 +22,7 @@ module Reinforce
       @history[:state].size
     end
 
-    def update(state, action, next_state, next_action, reward, done)
+    def update(state, action, next_state, next_action=nil, reward, done)
       @history[:state] << state
       @history[:action] << action
       @history[:next_state] << next_state
@@ -30,6 +30,19 @@ module Reinforce
       @history[:reward] << reward
       @history[:done] << done
     end
+
+    def sample(size = 1)
+      indices = (0...history_size).to_a.sample(size)
+      {
+        state: indices.map { |i| @history[:state][i] },
+        action: indices.map { |i| @history[:action][i] },
+        next_state: indices.map { |i| @history[:next_state][i] },
+        next_action: indices.map { |i| @history[:next_action][i] },
+        reward: indices.map { |i| @history[:reward][i] },
+        done: indices.map { |i| @history[:done][i] }
+      }
+    end
+
 
     # def [](symbol)
     #   case symbol

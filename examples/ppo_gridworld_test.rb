@@ -19,7 +19,7 @@ environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacle
 
 # Parameters
 learning_rate = 0.001
-max_actions_per_episode = 300
+max_actions_per_episode = 150
 
 # Create the agent
 agent = Reinforce::Algorithms::PPO.new(environment, learning_rate)
@@ -38,10 +38,10 @@ accomplished = 0
 testing_episodes.times do
   state = environment.reset
   max_actions_per_episode.times do
-    warn "State: #{state}"
     action = agent.predict(state) 
-    state, _, done = environment.step(action)
-    environment.render($stdout)
+    warn "State: #{state} action: #{action}"
+    state, _, done = environment.step(action.to_i)
+    #environment.render($stdout)
     if done
       accomplished += 1
       warn 'Goal reached!'

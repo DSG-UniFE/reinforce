@@ -19,7 +19,7 @@ environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacle
 
 # Parameters
 learning_rate = 0.001
-episodes = 5000
+episodes = 2500
 max_actions_per_episode = 150
 
 # Create the agent
@@ -39,8 +39,9 @@ puts 'Learned Policy'
 10.times do
   state = environment.reset
   max_actions_per_episode.times do
-    action = agent.predict(state) 
-    state, _, done = environment.step(action)
+    action = agent.predict(state)
+    #warn "action: #{action} #{action.to_i}"
+    state, _, done = environment.step(action.to_i)
     #warn "State: #{state}, Action: #{environment.actions[action]}"
     environment.render($stdout)
     if done

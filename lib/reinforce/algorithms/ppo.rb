@@ -18,12 +18,14 @@ module Reinforce
               layer_init(Torch::NN::Linear.new(64, 64)),
               Torch::NN::Tanh.new,
               layer_init(Torch::NN::Linear.new(64, num_actions), 0.01))
+          @policy_model.train
           @value_model = Torch::NN::Sequential.new(
               layer_init(Torch::NN::Linear.new(state_size, 64)),
               Torch::NN::Tanh.new,
               layer_init(Torch::NN::Linear.new(64, 64)),
               Torch::NN::Tanh.new,
               layer_init(Torch::NN::Linear.new(64, 1), 1.0))
+          @value_model.train
         end
 
         # from cleanrl
@@ -39,7 +41,8 @@ module Reinforce
 
         def get_action_and_value(x, action=nil)
           logits = @policy_model.call(x)
-          pd = CategoricalDistribution.new(logits: logits.to_a)
+          #warn "logits: #{logits}"
+          pd = CategoricalDistribution.new(logits: logits)
           action = pd.sample if action.nil?
           value = @value_model.call(x)
           logprob = pd.log_probability(action)
@@ -51,7 +54,7 @@ module Reinforce
 
       class PPO 
 
-          def initialize(environment, learning_rate, clip_param = 0.2, ppo_epochs = 8, minibatch_size = 64, discount_factor = 0.7)
+          def initialize(environment, learning_rate, clip_param = 0.2, ppo_epochs = 10, minibatch_size = 32, discount_factor = 0.99)
             @environment = environment
             @agent = Agent.new(environment.state_size, environment.actions.size)
             @gaelam = 0.97
@@ -81,7 +84,7 @@ module Reinforce
           def predict(state)
             argument = Torch.tensor(state, dtype: :float32) unless state.is_a?(Torch::Tensor)
             logits = Torch.no_grad { @agent.policy_model.call(argument) }
-            pd = CategoricalDistribution.new(logits: logits.to_a)
+            pd = CategoricalDistribution.new(logits: logits)
             pd.sample
           end
 
@@ -136,13 +139,14 @@ module Reinforce
             next_done = Torch.zeros(1) # 1 is th number of environments
 
             # Loop over the episodes
+
               1.upto(num_episodes) do |episode_number|
                   progress = episode_number.to_f / num_episodes * 100
                   print "\rTraining: #{progress.round(2)}%"
                   # Anneal the learning rate
-                  # fract = 1.0 - (episode_number -1) / num_episodes
-                  # lrnow = @learning_rate * fract
-                  # @optimizer.param_groups[0][:lr] = lrnow
+                  fract = 1.0 - (episode_number -1) / num_episodes
+                  lrnow = @learning_rate * fract
+                  @optimizer.param_groups[0][:lr] = lrnow
 
                   batch_size.times do |step|
 
@@ -151,7 +155,7 @@ module Reinforce
                     dones[step] = next_done
 
                     action, prob, value = nil
-                    
+
                     Torch.no_grad do
                       action, prob, _, value = @agent.get_action_and_value(next_obs)
                       values[step] = value.flatten
@@ -160,9 +164,9 @@ module Reinforce
                     actions[step] = action
                     logprobs[step] = prob
 
-                    next_obs, reward, next_done = @environment.step(action)
+                    next_obs, reward, next_done = @environment.step(action.to_i)
                     rewards[step] = reward
-                    if next_done == true
+                    if next_done == true || step == num_steps - 1
                       next_obs = @environment.reset
                       next_obs.map!(&:to_f)
                     end
@@ -197,7 +201,7 @@ module Reinforce
                   end
 
                   b_obs = obs.reshape(-1, @environment.state_size)#[0...num_steps]
-                  warn "b_obs: #{b_obs}"
+                  #warn "b_obs: #{b_obs}"
                   b_logprobs = logprobs.reshape(-1)
                   b_actions = actions.reshape(-1)
                   b_returns = returns.reshape(-1)
@@ -216,11 +220,9 @@ module Reinforce
                       mb_inds = b_inds[start..end_s]
                       _, newlogprob, entropy, newvalue = @agent.get_action_and_value(b_obs[Torch.tensor(mb_inds)], b_actions[Torch.tensor(mb_inds)])
                       entropy = Torch.tensor(entropy)
-                      logratio = Torch.tensor(newlogprob) - b_logprobs[Torch.tensor(mb_inds)]
-                      #warn "logratio #{logratio}"
+                      #warn "newlogprob: #{newlogprob} b_logprobs: #{b_logprobs[Torch.tensor(mb_inds)]}"
+                      logratio = newlogprob - b_logprobs[Torch.tensor(mb_inds)]
                       ratio = logratio.exp
-
-                      warn "ratio #{ratio}"
 
                       # Calculate the clipfrac
                       # Not logging them at the moment
@@ -237,9 +239,9 @@ module Reinforce
                       mb_advantages = b_advantages[Torch.tensor(mb_inds)]
                       # if we want to normalize the advantages
                       # use the configuration below
-                      # mb_advantages = (mb_advantages - mb_advantages.mean) / (mb_advantages.std + 1e-8)
+                      mb_advantages = (mb_advantages - mb_advantages.mean) / (mb_advantages.std + 1e-8)
 
-                      warn "mb_advantages: #{mb_advantages}"
+                      #warn "mb_advantages: #{mb_advantages}"
                       pg_loss1 = -mb_advantages * ratio
                       #warn "pg_loss1 #{pg_loss1}"
                       pg_loss2 = -mb_advantages * Torch.clamp(ratio, 1.0 - @clip_param, 1.0 + @clip_param)
@@ -257,50 +259,18 @@ module Reinforce
                       value_loss = 0.5 * v_loss_max.mean()
 
                       entropy_loss = entropy.mean()
-                      warn "entropy_loss: #{entropy_loss}"
+                      #warn "entropy_loss: #{entropy_loss}"
                       loss = pg_loss - 0.01 * entropy_loss + value_loss * 0.5
-                      #pg_loss.requires_grad = true
-                      #warn "pg_loss: #{pg_loss} value_loss #{value_loss}"
                       #loss = pg_loss + value_loss * 0.5
 
-                      res = @agent.policy_model.call(b_obs[Torch.tensor(mb_inds)])
-                      warn "res: #{res}"
-                      res.backward
-                      
                       @optimizer.zero_grad
 
-                      warn "loss: #{loss}"
-                      
+                      #warn "loss: #{loss}"     
                       loss.backward
-                      #simplified_loss.backward
-
-                      @agent.policy_model.parameters.each do |param|
-                        puts "Policy model gradient: #{param.grad}"
-                      end
-
-                      #@agent.value_model.parameters.each do |param|
-                      #  puts "Value model gradient: #{param.grad}"
-                      #end
-
-                      total_norm_before = calculate_total_grad_norm(@agent.parameters)
-                      puts "Total gradient norm before clipping: #{total_norm_before}"
-
                       # Gradient clipping calculation
                       clip_grad_norm_(@agent.parameters, @clip_param)
 
-
-                      total_norm_after = calculate_total_grad_norm(@agent.parameters)
-                      puts "Total gradient norm after clipping: #{total_norm_after}"
-                      before_params = @agent.policy_model.parameters.map { |p| p.data.clone }
                       @optimizer.step
-                      after_params = @agent.policy_model.parameters.map { |p| p.data.clone }
-                      differences = before_params.zip(after_params).map do |before, after|
-                        (before - after).abs.sum.item
-                      end
-
-                      # Summarize differences to see if any updates occurred
-                      total_difference = differences.sum
-                      puts "Total parameter update difference: #{total_difference}"
                     end
                   end
               end

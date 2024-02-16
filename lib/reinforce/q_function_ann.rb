@@ -5,6 +5,7 @@
 
 require 'torch'
 require 'forwardable'
+require_relative './categorical_distribution'
 
 module Reinforce
   # input to the network is the current state
@@ -12,7 +13,7 @@ module Reinforce
   class QFunctionANN
     extend Forwardable
     def_delegators :@architecture, :apply, :parameters, :state_dict, :load_state_dict
-    attr_reader :optimizer
+    attr_reader :optimizer, :architecture
 
     def initialize(state_size, num_actions, learning_rate, discount_factor)
       @num_actions = num_actions
@@ -45,7 +46,7 @@ module Reinforce
                     Torch::Tensor.new(state)
                   end
       logits = Torch.no_grad { forward(argument) }
-      CategoricalDistribution.new(logits: logits.to_a).greedy
+      CategoricalDistribution.new(logits: logits).sample
     end 
 
 
@@ -68,6 +69,7 @@ module Reinforce
         if done
           target_actions[i] = reward
         else
+          # the last part could be next_action, not next_q_values...
           target_actions[i] = reward + @discount_factor * next_q_values[i][next_action]
         end
       end
@@ -86,11 +88,10 @@ module Reinforce
       @optimizer.zero_grad
       # Some debugging. Comment if not needed.
       #warn "target_actions: #{target_actions.inspect}"
-      #warn "taken_q_values: #{taken_q_values.inspect}"
       # Calculate the loss
       loss = criterion.call(taken_q_values, Torch::Tensor.new(target_actions))
       # Log the loss
-      # warn "Loss: #{loss.item}"
+      # warn "Loss: #{loss}"
       # Backpropagate the loss
       loss.backward
       # Update the weights

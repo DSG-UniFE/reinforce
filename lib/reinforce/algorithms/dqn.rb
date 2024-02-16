@@ -23,8 +23,10 @@ module Reinforce
         @tau = 1.0
         @initial_epsilon = epsilon
         @training_start = 1000
-        @update_frequency_for_q = 100
+        @update_frequency_for_q = 10
         @update_frequency_for_q_target = 500
+        @optimizer = Torch::Optim::Adam.new(@q_function_model.parameters, lr: 0.001)
+        @discount_factor = 0.99
       end
 
       def choose_action(state, epsilon)
@@ -35,9 +37,9 @@ module Reinforce
         else
           # Obtain the logits of each action from the model
           logits = @q_function_model.forward(state)
-
           # Return greedy action from the distribution
-          CategoricalDistribution.new(logits: logits.to_a).greedy
+          #CategoricalDistribution.new(logits: logits).greedy
+          logits.argmax.to_i
         end
       end
 
@@ -49,66 +51,87 @@ module Reinforce
       # this number is reached: in that case, the episode terminates)
       # @return [void]
       def train(num_episodes, batch_size)
+
+        total_steps = num_episodes * batch_size
+        
         # Epsilon greedy algorithm implements a dynamic exploration /
         # exploitation tradeoff. The epsilon parameter starts at the initial
         # value and decays over the training process to reach zero at the end
         # of it.
         epsilon = @initial_epsilon
 
-        minibatch_size = 64
+        minibatch_size = 128
         global_step = 0
 
+        state = @environment.reset
+        actions_left = batch_size
 
         # Training loop
-        1.upto(num_episodes) do |episode_number|
-          warn "Episode: #{episode_number}"
-          progress = episode_number.to_f / num_episodes * 100
+        1.upto(total_steps) do 
+          # warn "Episode: #{episode_number}"
+          progress = global_step.to_f / total_steps * 100
           print "\rTraining: #{progress.round(2)}%"
           # Reset the environment
-          state = @environment.reset
 
           # Setup number of actions to take before updating the Q function
-          actions_left = batch_size
 
-          # Perform batch_size steps by acting in the environment, storing the
-          # experience in a replay memory, and updating the Q and Q target
-          # functions
-          batch_size.times do
-            # Choose an action, according to epsilon-greedy policy
-            action = choose_action(state, epsilon)
+          # Choose an action, according to epsilon-greedy policy
+          action = choose_action(state, epsilon)
 
-            # Take the action and observe the next state and reward
-            next_state, reward, done = @environment.step(action)
-            actions_left -= 1
+          # Take the action and observe the next state and reward
+          next_state, reward, done = @environment.step(action.to_i)
+          actions_left -= 1
 
-            # Store the experience in the replay memory
-            @prioritized_experience_replay.update(state, action, next_state, reward, done)
+          # Store the experience in the replay memory
+          @prioritized_experience_replay.update(state, action, next_state, reward, done)
 
+          # Update the count of steps taken so far
+          global_step += 1
+
+          if global_step > @training_start
             # Sample a minibatch of experiences from the replay memory
-            experience = @prioritized_experience_replay.sample(minibatch_size)
-
-            # Update the count of steps taken so far
-            global_step += 1
-
-            if global_step > @training_start
-              # Update Q function every @update_frequency_for_q steps
-              if (global_step % @update_frequency_for_q).zero?
-                @q_function_model.update(experience)
+            # Update Q function every @update_frequency_for_q steps
+            if (global_step % @update_frequency_for_q).zero?
+              experience = @prioritized_experience_replay.sample(minibatch_size)
+              target = nil
+              Torch.no_grad do
+                target_max = @q_function_model_target.architecture.call(Torch.tensor(experience[:next_state], dtype: :float32)).max#.max(dim: 1)
+                #warn "target_max: #{target_max}"
+                t_rewards = Torch.tensor(experience[:reward])
+                dones = experience[:done].map { |d| d ? 0 : 1 }
+                target = t_rewards + @discount_factor * target_max * (1- Torch.tensor(dones))
               end
-
-              # Soft-update target Q function every @update_frequency_for_q_target steps
-              if (global_step % @update_frequency_for_q_target).zero?
-                @q_function_model_target.soft_update(@q_function_model, @tau)
+              t_actions = Torch.tensor(experience[:action])
+              old_val = @q_function_model.forward(experience[:state])
+              #warn "old_val.size: #{old_val.shape}, t_actions.size: #{t_actions.shape}"
+              told_val = Torch.zeros_like(t_actions, dtype: :float32)
+              old_val.zip(t_actions).each_with_index do |(val, action), i|
+                told_val[i] = val[action]
               end
+              criterion = Torch::NN::MSELoss.new
+              loss = criterion.call(told_val, target)
+              #warn "Loss: #{loss}"
+              @optimizer.zero_grad
+              loss.backward
+              @optimizer.step
+              #@q_function_model.update(experience)
             end
 
-            state = next_state
+            # Soft-update target Q function every @update_frequency_for_q_target steps
+            if (global_step % @update_frequency_for_q_target).zero?
+              @q_function_model_target.soft_update(@q_function_model, @tau)
+            end
+          end
 
-            break if done || actions_left.zero? # Reached the goal state
+          state = next_state
+
+          if done || actions_left.zero? # Reached the goal state
+            actions_left = batch_size
+            state = @environment.reset
           end
 
           # Decay epsilon
-          epsilon = @initial_epsilon * (num_episodes - episode_number) / num_episodes
+          epsilon = @initial_epsilon * (total_steps - global_step) / total_steps
         end
 
       end     

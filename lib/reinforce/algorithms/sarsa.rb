@@ -30,7 +30,7 @@ module Reinforce
           logits = @q_function_model.forward(state)
 
           # Return greedy action from the distribution
-          CategoricalDistribution.new(logits: logits.to_a).greedy
+          CategoricalDistribution.new(logits: logits).greedy
         end
       end
 
@@ -70,7 +70,7 @@ module Reinforce
             # Choose an action
 
             # Take the action and observe the next state and reward
-            next_state, reward, done = @environment.step(action)
+            next_state, reward, done = @environment.step(action.to_i)
             actions_left -= 1
 
             next_action = choose_action(state, epsilon)

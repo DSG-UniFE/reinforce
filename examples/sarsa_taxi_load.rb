@@ -31,21 +31,23 @@ q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning
 # Create the agent
 agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon)
 
-# Train the agent
-agent.train(episodes, max_actions_per_episode)
-
-# Save the model
-agent.save('taxi_sarsa.pth')
+agent.load('taxi_sarsa.pth')
 
 # Print the learned policy
 state = environment.reset
 puts 'Learned Policy'
-100.times do |_|
-    action = agent.predict(state)
-    state, reward, done = environment.step(action.to_i)
-    environment.render
-    if done
-      puts "Task Completed!"
-      break
-    end
+testing_episodes = 100
+accomplished = 0
+testing_episodes.times do |i|
+  max_actions_per_episode.times do |_|
+      action = agent.predict(state)
+      state, reward, done = environment.step(action.to_i)
+      environment.render
+      if done
+        puts "Task Completed!"
+        accomplished += 1
+        break
+      end
+  end
 end
+puts "Accomplished: #{accomplished}/#{testing_episodes} episodes."

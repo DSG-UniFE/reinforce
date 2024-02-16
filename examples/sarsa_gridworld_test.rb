@@ -32,16 +32,21 @@ agent.load('gridworld_sarsa.pth')
 
 # Print the learned policy
 puts 'Learned Policy'
-150.times do |i|
+testing_episodes = 100
+accomplished = 0
+testing_episodes.times do |i|
   puts '----------------'
   state = environment.reset
   max_actions_per_episode.times do
     action = agent.predict(state)
-    state, _, done = environment.step(action)
-    environment.render($stdout)
+    state, _, done = environment.step(action.to_i)
+    #environment.render($stdout)
     if done
       puts "Goal reached! Episode #{i}"
+      accomplished += 1
       break
     end
   end
 end
+
+puts "Accomplished: #{accomplished}/#{testing_episodes} episodes."

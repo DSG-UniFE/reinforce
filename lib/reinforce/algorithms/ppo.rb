@@ -186,7 +186,8 @@ module Reinforce
                     advantages = Torch.zeros_like(rewards)
                     lastgaelam = 0
                     next_done_f = next_done ? 1.0 : -1.0
-                    for t in (num_steps - 1).downto(0)
+
+                    (num_steps - 1).downto(0).each do |t|
                       if t == num_steps - 1
                         nextnonterminal = 1.0 - next_done_f
                         nextvalues = next_value
@@ -200,14 +201,12 @@ module Reinforce
                     returns = advantages + values
                   end
 
-                  b_obs = obs.reshape(-1, @environment.state_size)#[0...num_steps]
-                  #warn "b_obs: #{b_obs}"
+                  b_obs = obs.reshape(-1, @environment.state_size)
                   b_logprobs = logprobs.reshape(-1)
                   b_actions = actions.reshape(-1)
                   b_returns = returns.reshape(-1)
                   b_advantages = advantages.reshape(-1)
                   b_values = values.reshape(-1)
-                  #warn "b_advantages: #{b_advantages}"
 
                   b_inds = (0...num_steps).to_a 
                   clipfracs = []
@@ -215,12 +214,10 @@ module Reinforce
                   1.upto(@ppo_epochs) do |epoch|
                     b_inds.shuffle! 
                     (0..(batch_size -1)).step(@minibatch_size) do |start|
-                      #warn "PPO minibatch: #{start}, epoch: #{epoch}"
                       end_s = start + @minibatch_size 
                       mb_inds = b_inds[start..end_s]
                       _, newlogprob, entropy, newvalue = @agent.get_action_and_value(b_obs[Torch.tensor(mb_inds)], b_actions[Torch.tensor(mb_inds)])
                       entropy = Torch.tensor(entropy)
-                      #warn "newlogprob: #{newlogprob} b_logprobs: #{b_logprobs[Torch.tensor(mb_inds)]}"
                       logratio = newlogprob - b_logprobs[Torch.tensor(mb_inds)]
                       ratio = logratio.exp
 
@@ -241,15 +238,10 @@ module Reinforce
                       # use the configuration below
                       mb_advantages = (mb_advantages - mb_advantages.mean) / (mb_advantages.std + 1e-8)
 
-                      #warn "mb_advantages: #{mb_advantages}"
                       pg_loss1 = -mb_advantages * ratio
-                      #warn "pg_loss1 #{pg_loss1}"
                       pg_loss2 = -mb_advantages * Torch.clamp(ratio, 1.0 - @clip_param, 1.0 + @clip_param)
-                      #warn "pg_loss2 #{pg_loss2}"
                       pg_loss = Torch.max(pg_loss1, pg_loss2).mean()
-                      #warn "pg_loss #{pg_loss}"
 
-                      
                       # Use v_clip for calculating value loss
                       newvalue = newvalue.reshape(-1)
                       v_loss_unclipped = (newvalue - b_returns[Torch.tensor(mb_inds)]).pow(2)
@@ -258,10 +250,13 @@ module Reinforce
                       v_loss_max = Torch.max(v_loss_unclipped, v_loss_clipped)
                       value_loss = 0.5 * v_loss_max.mean()
 
-                      entropy_loss = entropy.mean()
+                      entropy_loss = entropy.mean
+
                       #warn "entropy_loss: #{entropy_loss}"
                       loss = pg_loss - 0.01 * entropy_loss + value_loss * 0.5
-                      #loss = pg_loss + value_loss * 0.5
+
+                      # Here another type of loss without entropy
+                      # loss = pg_loss + value_loss * 0.5
 
                       @optimizer.zero_grad
 

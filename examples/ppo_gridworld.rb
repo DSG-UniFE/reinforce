@@ -19,7 +19,7 @@ environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacle
 
 # Parameters
 learning_rate = 0.001
-episodes = 2500
+episodes = 5000
 max_actions_per_episode = 150
 
 # Create the agent

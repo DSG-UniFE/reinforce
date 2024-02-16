@@ -90,7 +90,10 @@ class CategoricalDistribution
 
   def entropy
     # The entropy of a categorical distribution is given by:
-    - Torch.sum(Torch.softmax(@logits, dim: 0) * Torch.log_softmax(@logits, dim: 0))
+    # H(p) = - \sum_i p_i \log(p_i)
+    # where p_i is the probability of the i-th action.
+    # p_i are calculated using the sigmoid function instead of the softmax.
+    - Torch.sum(Torch.sigmoid(@logits) * Torch.log_softmax(@logits, dim: 0))
   end
 
   private

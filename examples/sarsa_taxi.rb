@@ -6,12 +6,12 @@
 
 require_relative '../lib/reinforce/q_function_ann'
 require_relative '../lib/reinforce/algorithms/sarsa'
-require_relative '../lib/reinforce/environments/taxiv2'
+require_relative '../lib/reinforce/environments/taxi'
 require 'torch'
 require 'forwardable'
 
 # Create the environment
-environment = Reinforce::Environments::TaxiV2.new
+environment = Reinforce::Environments::Taxi.new
 state_size = environment.state_size
 num_actions = environment.actions.size
 
@@ -19,7 +19,7 @@ num_actions = environment.actions.size
 # Train the agent
 learning_rate = 0.01
 discount_factor = 0.7
-episodes = 10_000
+episodes = 1500
 max_actions_per_episode = 100
 epsilon = 0.8
 

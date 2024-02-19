@@ -20,7 +20,7 @@ module Reinforce
       def reset 
         @done = false
         taxi_location = Array.new(2) { rand(@num_location) }
-        @passenger_location = [3, 0] #Array.new(2) { rand(@num_location) }
+        @passenger_location = Array.new(2) { rand(@num_location) }
         @destination = Array.new(2) { rand(@num_location) }
         @passenger_in_taxi = 0
         @state = taxi_location.dup
@@ -32,10 +32,11 @@ module Reinforce
       end
 
       def step(action)
+
         action = actions[action] if action.is_a?(Integer)
-        reward = 0
-        taxi_location = @state.dup
-        
+        reward = -1 # default reward according to gyn
+        taxi_location = @state.map!(&:to_i).dup
+        #warn "action: #{action}"
         case action
         when :south
           taxi_location = [taxi_location[0], [taxi_location[1] + 1, @num_location - 1].min]
@@ -48,31 +49,32 @@ module Reinforce
         when :pickup
           if taxi_location == @passenger_location && @passenger_in_taxi == 0
             @passenger_in_taxi = 1
-            reward = 2
+            reward = 10
+            warn "Passenger picked up!"
           else
             reward = -10
           end
         when :dropoff
           if taxi_location == @destination && @passenger_in_taxi == 1
-            reward = 2
+            reward = 20
             @done = true
             warn "Task Completed!"
           else
-            reward = -5
+            reward = -10
           end
         end
+        
+        #if @passenger_in_taxi == 0
+        #  distance_to_passengers = (taxi_location[0] - @passenger_location[0]).abs + (taxi_location[1] - @passenger_location[1]).abs / @num_location.to_f
+        #  reward -= distance_to_passengers
+        #else 
+        #  distance_to_goal = (taxi_location[0] - @destination[0]).abs + (taxi_location[1] - @destination[1]).abs / @num_location.to_f
+        #  reward -= distance_to_goal
+        #end
 
-        if @passenger_in_taxi == 0
-          distance_to_passengers = (taxi_location[0] - @passenger_location[0]).abs + (taxi_location[1] - @passenger_location[1]).abs / @num_location.to_f
-          reward -= distance_to_passengers
-        else 
-          distance_to_goal = (taxi_location[0] - @destination[0]).abs + (taxi_location[1] - @destination[1]).abs / @num_location.to_f
-          reward -= distance_to_goal
-        end
+        #reward = -1 if action != :pickup && action != :dropoff && taxi_location == @state
 
-        reward = -1 if action != :pickup && action != :dropoff && taxi_location == @state
-
-        @state = taxi_location.dup
+        @state = taxi_location.map!(&:to_f).dup
 
         [@state, reward, @done]
       end
@@ -80,7 +82,6 @@ module Reinforce
     # Let's render the environment  on the screen
     # let's draw a grid with the position of the taxi, the passenger and the num_destination
     def render
-
       warn "State: #{@state}"
       (0...@num_location).each do |j|
         (0...@num_location).each do |i|

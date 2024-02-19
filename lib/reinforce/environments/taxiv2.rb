@@ -37,6 +37,7 @@ module Reinforce
         taxi_location = @state.dup[0..1]
         passenger_location = @state.dup[2..3]
         destination = @state.dup[4..5]
+        reward = -1 # default reward according to gynnasyium
         
         case action
         when :south
@@ -50,35 +51,21 @@ module Reinforce
         when :pickup
           if taxi_location == passenger_location && @passenger_in_taxi == 0
             @passenger_in_taxi = 1
-            reward = 2
+            reward = 10
+            warn "Passenger picked up!"
           else
-            reward = -5
+            reward = -10
           end
         when :dropoff
           if taxi_location == destination && @passenger_in_taxi == 1
-            reward = 2
+            reward = 20
             @done = true
             warn "Task Completed!"
           else
-            reward = -5
+            reward = -10
           end
         end
-
-        # if the agent does not pick up the passenger, it will be penalized
-        reward += -5 if taxi_location == passenger_location && @passenger_in_taxi.zero? && action != :pickup
-        # if the agent does not drop off the passenger, it will be penalized
-        reward += -5 if taxi_location == destination && @passenger_in_taxi == 1 && action != :dropoff
-
-        if @passenger_in_taxi == 0
-          distance_to_passengers_after = (taxi_location[0] - passenger_location[0]).abs + (taxi_location[1] - passenger_location[1]).abs / @num_location.to_f
-          distance_to_passengers_before = (state[0] - passenger_location[0]).abs + (state[1] - passenger_location[1]).abs / @num_location.to_f
-          reward += distance_to_passengers_after < distance_to_passengers_before ? 1 : -1
-        else 
-          distance_to_goal_after = (taxi_location[0] - destination[0]).abs + (taxi_location[1] - destination[1]).abs / @num_location.to_f
-          distance_to_goal_before = (state[0] - destination[0]).abs + (state[1] - destination[1]).abs / @num_location.to_f
-          reward += distance_to_goal_after < distance_to_goal_before ? 1 : -1
-        end
-
+        
         @state = [taxi_location.dup, passenger_location.dup, destination.dup].flatten
 
         [@state, reward, @done]

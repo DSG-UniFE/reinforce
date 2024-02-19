@@ -96,14 +96,12 @@ module Reinforce
               target = nil
               Torch.no_grad do
                 target_max = @q_function_model_target.architecture.call(Torch.tensor(experience[:next_state], dtype: :float32)).max#.max(dim: 1)
-                #warn "target_max: #{target_max}"
                 t_rewards = Torch.tensor(experience[:reward])
                 dones = experience[:done].map { |d| d ? 0 : 1 }
                 target = t_rewards + @discount_factor * target_max * (1- Torch.tensor(dones))
               end
               t_actions = Torch.tensor(experience[:action])
               old_val = @q_function_model.forward(experience[:state])
-              #warn "old_val.size: #{old_val.shape}, t_actions.size: #{t_actions.shape}"
               told_val = Torch.zeros_like(t_actions, dtype: :float32)
               old_val.zip(t_actions).each_with_index do |(val, action), i|
                 told_val[i] = val[action]

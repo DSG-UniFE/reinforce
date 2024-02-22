@@ -25,12 +25,9 @@ discount_factor = 0.99
 episodes = 5000
 max_actions_per_episode = 150
 
-# Create the Q function: we are using a neural network model for i
-q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
-q_function_model_target = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
 
 # Create the agent
-agent = Reinforce::Algorithms::DQN.new(environment, q_function_model, q_function_model_target)
+agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_factor)
 
 # Train the agent
 agent.train(episodes, max_actions_per_episode)

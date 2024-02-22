@@ -24,11 +24,8 @@ epsilon = 0.8
 
 warn "State size: #{state_size} actions: #{num_actions}"
 
-# Create the Q function: we are using a neural network model for it
-q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
-q_function_model_target = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
 # Create the agent
-agent = Reinforce::Algorithms::DQN.new(environment, q_function_model, q_function_model_target, epsilon)
+agent = Reinforce::Algorithms::DQN.new(environment)
 
 # Save the model
 agent.load('taxi_dqn.pth')

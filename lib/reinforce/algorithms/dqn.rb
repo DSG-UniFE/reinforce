@@ -6,6 +6,7 @@
 require_relative '../experience'
 require_relative '../categorical_distribution'
 require_relative '../prioritized_experience_replay'
+require_relative '../q_function_ann'
 
 module Reinforce
   module Algorithms
@@ -13,20 +14,21 @@ module Reinforce
     # This class implements a Reinforcement Learning agent that uses the
     # Deep Q Network algorithm.
     class DQN
-      def initialize(environment, q_function_model, q_function_model_target, epsilon = 0.9)
+      def initialize(environment, learning_rate=2.5e-4, discount_factor=0.99, epsilon = 0.9)
         @environment = environment
-        @q_function_model = q_function_model
-        @q_function_model_target = q_function_model_target
+        @q_function_model = QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
+        @q_function_model_target = QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
         # Create prioritized experience replay store
         @prioritized_experience_replay = PrioritizedExperienceReplay.new
         # tau is the Polyak averaging parameter, it should be between 0 and 1
         @tau = 1.0
+        @learning_rate = learning_rate
         @initial_epsilon = epsilon
         @training_start = 1000
         @update_frequency_for_q = 10
         @update_frequency_for_q_target = 500
         @optimizer = Torch::Optim::Adam.new(@q_function_model.parameters, lr: 0.001)
-        @discount_factor = 0.99
+        @discount_factor = discount_factor
       end
 
       def choose_action(state, epsilon)

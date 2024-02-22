@@ -16,20 +16,15 @@ start = [0, 0]
 goal = [size - 1, size - 1]
 obstacles = 5
 environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacles)
-state_size = environment.state_size
-num_actions = environment.actions.size
 
 # Parameters
 learning_rate = 0.01
 discount_factor = 0.7
 max_actions_per_episode = 150
 
-# Create the Q function: we are using a neural network model for i
-q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
-q_function_model_target = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
 
 # Create the agent
-agent = Reinforce::Algorithms::DQN.new(environment, q_function_model, q_function_model_target)
+agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_factor)
 
 # Load the agent
 

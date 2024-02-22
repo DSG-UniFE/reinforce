@@ -15,7 +15,7 @@ environment = Reinforce::Environments::TaxiV2.new
 
 # Parameters
 learning_rate = 2.5e-4
-episodes = 50_000
+episodes = 5_000
 max_actions_per_episode = 250
 
 # Create the agent
@@ -39,7 +39,7 @@ puts 'Learned Policy'
     #warn "action: #{action} #{action.to_i}"
     state, _, done = environment.step(action.to_i)
     #warn "State: #{state}, Action: #{environment.actions[action]}"
-    environment.render($stdout)
+    environment.render
     if done
       warn 'Goal reached!'
       break

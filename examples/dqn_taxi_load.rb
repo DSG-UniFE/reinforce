@@ -43,7 +43,7 @@ state = environment.reset
     action = agent.predict(state)
     state, reward, done = environment.step(action)
     #puts "Action: #{environment.actions[action.to_i]}, Reward: #{reward}"
-    #environment.render
+    environment.render
     if done
       puts "Task Completed!"
       accomplished += 1

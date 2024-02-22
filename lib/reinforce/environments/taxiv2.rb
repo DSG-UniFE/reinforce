@@ -65,6 +65,14 @@ module Reinforce
             reward = -10
           end
         end
+
+        # if not pickup or dropoff add a reward component to drive the taxi
+        # close to the pickup point (when taxi is free) or to the dropoff point
+        if action != :pickup && action != :dropoff
+          whereto = @passenger_in_taxi == 0 ?  @state[2..3] : @state[4..5]
+          # Calculate euclidean distance between taxi_location and whereto
+          reward += 1.0 / (1 + Math.sqrt((taxi_location[0] - whereto[0])**2 + (taxi_location[1] - whereto[1])**2))
+        end
         
         @state = [taxi_location.dup, passenger_location.dup, destination.dup].flatten
 

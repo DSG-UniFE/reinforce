@@ -10,22 +10,28 @@ module Reinforce
 
         attr_reader :policy_model, :value_model
 
-        def initialize(state_size, num_actions)
+        def initialize(state_size, num_actions, policy_model=nil, value_model=nil)
           super()
-          @policy_model = Torch::NN::Sequential.new(
-              layer_init(Torch::NN::Linear.new(state_size, 64)),
-              Torch::NN::Tanh.new,
-              layer_init(Torch::NN::Linear.new(64, 64)),
-              Torch::NN::Tanh.new,
-              layer_init(Torch::NN::Linear.new(64, num_actions), 0.01))
-          @policy_model.train
-          @value_model = Torch::NN::Sequential.new(
-              layer_init(Torch::NN::Linear.new(state_size, 64)),
-              Torch::NN::Tanh.new,
-              layer_init(Torch::NN::Linear.new(64, 64)),
-              Torch::NN::Tanh.new,
-              layer_init(Torch::NN::Linear.new(64, 1), 1.0))
-          @value_model.train
+          if policy_model.nil? || value_model.nil?
+              @policy_model = Torch::NN::Sequential.new(
+                  layer_init(Torch::NN::Linear.new(state_size, 64)),
+                  Torch::NN::Tanh.new,
+                  layer_init(Torch::NN::Linear.new(64, 64)),
+                  Torch::NN::Tanh.new,
+                  layer_init(Torch::NN::Linear.new(64, num_actions), 0.01))
+              @policy_model.train
+              @value_model = Torch::NN::Sequential.new(
+                  layer_init(Torch::NN::Linear.new(state_size, 64)),
+                  Torch::NN::Tanh.new,
+                  layer_init(Torch::NN::Linear.new(64, 64)),
+                  Torch::NN::Tanh.new,
+                  layer_init(Torch::NN::Linear.new(64, 1), 1.0))
+              @value_model.train
+          else 
+            @policy_model = policy_model
+            @value_model = value_model
+            [@policy_model, @value_model].each(&:train)
+          end
         end
 
         # from cleanrl
@@ -54,9 +60,11 @@ module Reinforce
 
       class PPO 
 
-          def initialize(environment, learning_rate, clip_param = 0.2, ppo_epochs = 10, minibatch_size = 32, discount_factor = 0.99)
+          attr_reader :logs
+          attr_accessor :agent,:optimizer
+          def initialize(environment, learning_rate, policy=nil, value=nil, clip_param = 0.2, ppo_epochs = 10, minibatch_size = 32, discount_factor = 0.99)
             @environment = environment
-            @agent = Agent.new(environment.state_size, environment.actions.size)
+            @agent = Agent.new(environment.state_size, environment.actions.size, policy, value)
             @gaelam = 0.97
             @clip_param = clip_param
             @ppo_epochs = ppo_epochs
@@ -64,6 +72,7 @@ module Reinforce
             @discount_factor = discount_factor
             @learning_rate = learning_rate
             # Create the optimizer
+            @logs = {loss: [], episode_reward: []}
             @optimizer = Torch::Optim::Adam.new([@agent.policy_model.parameters, @agent.value_model.parameters].flatten, lr: learning_rate, eps: 1e-5)
           end
 
@@ -142,11 +151,12 @@ module Reinforce
 
               1.upto(num_episodes) do |episode_number|
                   progress = episode_number.to_f / num_episodes * 100
-                  print "\rTraining: #{progress.round(2)}%"
+                  #print "\rTraining: #{progress.round(2)}%"
                   # Anneal the learning rate
                   fract = 1.0 - (episode_number -1) / num_episodes
                   lrnow = @learning_rate * fract
                   @optimizer.param_groups[0][:lr] = lrnow
+                  episode_reward = 0
 
                   batch_size.times do |step|
 
@@ -166,7 +176,9 @@ module Reinforce
 
                     next_obs, reward, next_done = @environment.step(action.to_i)
                     rewards[step] = reward
+                    episode_reward += reward
                     if next_done == true || step == num_steps - 1
+                      @logs[:episode_reward] << episode_reward
                       next_obs = @environment.reset
                       next_obs.map!(&:to_f)
                     end
@@ -254,6 +266,7 @@ module Reinforce
 
                       #warn "entropy_loss: #{entropy_loss}"
                       loss = pg_loss - 0.01 * entropy_loss + value_loss * 0.5
+                      @logs[:loss] << loss.item
 
                       # Here another type of loss without entropy
                       # loss = pg_loss + value_loss * 0.5

@@ -9,6 +9,7 @@ require_relative '../lib/reinforce/algorithms/ppo'
 require_relative '../lib/reinforce/environments/gridworld'
 require 'torch'
 require 'forwardable'
+require 'unicode_plot'
 
 # Create the environment
 size = 10
@@ -19,11 +20,23 @@ environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacle
 
 # Parameters
 learning_rate = 0.001
-episodes = 5000
+episodes = 2500
 max_actions_per_episode = 150
 
 # Create the agent
-agent = Reinforce::Algorithms::PPO.new(environment, learning_rate)
+# Define a policy model for the agent 
+policy = Torch::NN::Sequential.new(
+  Torch::NN::Linear.new(2, 64),
+  Torch::NN::Tanh.new,
+  Torch::NN::Linear.new(64, 64),
+  Torch::NN::Tanh.new,
+  Torch::NN::Linear.new(64, environment.actions.size))
+value = Torch::NN::Sequential.new(
+  Torch::NN::Linear.new(2, 64),
+  Torch::NN::Tanh.new,
+  Torch::NN::Linear.new(64, 1))
+
+agent = Reinforce::Algorithms::PPO.new(environment, learning_rate, policy, value)
 
 # Train the agent
 agent.train(episodes, max_actions_per_episode)
@@ -35,18 +48,27 @@ agent.save('gridworld_ppo.pth')
 agent.eval
 # Print the learned policy
 puts 'Learned Policy'
+plot = UnicodePlot.lineplot(agent.logs[:loss], title: "Loss", width: 100, height: 20)
+plot.render
+plot = UnicodePlot.lineplot(agent.logs[:episode_reward], title: "Rewards", width: 100, height: 20)
+plot.render
 
+begin
 10.times do
   state = environment.reset
+  moves = 0
   max_actions_per_episode.times do
+    moves += 1
     action = agent.predict(state)
     #warn "action: #{action} #{action.to_i}"
     state, _, done = environment.step(action.to_i)
     #warn "State: #{state}, Action: #{environment.actions[action]}"
     environment.render($stdout)
     if done
-      warn 'Goal reached!'
+      warn 'Goal reached! In moves: ' + moves.to_s + 'moves'
       break
     end 
   end
 end
+end
+

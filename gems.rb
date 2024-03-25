@@ -12,7 +12,7 @@ gemspec
 gem 'bake', '~> 0.18.2'
 gem 'bake-gem', '~> 0.4.0'
 gem 'bake-modernize', '~> 0.17.8'
-
+gem 'unicode_plot'
 gem 'standard', '~> 1.3'
 
 group :test do

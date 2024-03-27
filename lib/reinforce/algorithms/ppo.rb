@@ -72,7 +72,7 @@ module Reinforce
             @discount_factor = discount_factor
             @learning_rate = learning_rate
             # Create the optimizer
-            @logs = {loss: [], episode_reward: []}
+            @logs = {loss: [], episode_reward: [], episode_length: []}
             @optimizer = Torch::Optim::Adam.new([@agent.policy_model.parameters, @agent.value_model.parameters].flatten, lr: learning_rate, eps: 1e-5)
           end
 
@@ -146,12 +146,12 @@ module Reinforce
             next_obs = @environment.reset
             next_obs = Torch.tensor(next_obs.map!(&:to_f))
             next_done = Torch.zeros(1) # 1 is th number of environments
-
+            episode_lenth = 0
             # Loop over the episodes
 
               1.upto(num_episodes) do |episode_number|
                   progress = episode_number.to_f / num_episodes * 100
-                  #print "\rTraining: #{progress.round(2)}%"
+                  print "\rTraining: #{progress.round(2)}%" if episode_number % 10 == 0
                   # Anneal the learning rate
                   fract = 1.0 - (episode_number -1) / num_episodes
                   lrnow = @learning_rate * fract
@@ -171,6 +171,8 @@ module Reinforce
                       values[step] = value.flatten
                     end
 
+                    episode_lenth += 1
+
                     actions[step] = action
                     logprobs[step] = prob
 
@@ -179,6 +181,9 @@ module Reinforce
                     episode_reward += reward
                     if next_done == true || step == num_steps - 1
                       @logs[:episode_reward] << episode_reward
+                      @logs[:episode_length] << episode_lenth
+                      #warn "Episode: #{episode_number} Reward: #{episode_reward} Length: #{episode_lenth}"
+                      episode_lenth = 0
                       next_obs = @environment.reset
                       next_obs.map!(&:to_f)
                     end

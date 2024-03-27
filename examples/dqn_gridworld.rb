@@ -9,6 +9,7 @@ require_relative '../lib/reinforce/algorithms/dqn'
 require_relative '../lib/reinforce/environments/gridworld'
 require 'torch'
 require 'forwardable'
+require 'unicode_plot'
 
 # Create the environment
 size = 10
@@ -22,7 +23,7 @@ num_actions = environment.actions.size
 # Parameters
 learning_rate = 0.001
 discount_factor = 0.99
-episodes = 5000
+episodes = 1_500
 max_actions_per_episode = 150
 
 
@@ -33,14 +34,23 @@ agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_fact
 agent.train(episodes, max_actions_per_episode)
 agent.save('gridworld_dqn.pth')
 # Print the learned policy
+
+plot = UnicodePlot.lineplot(agent.logs[:loss], title: "Loss", width: 100, height: 20)
+plot.render
+plot = UnicodePlot.lineplot(agent.logs[:episode_reward], title: "Rewards", width: 100, height: 20)
+plot.render
+plot = UnicodePlot.lineplot(agent.logs[:episode_length], title: "Episode Length", width: 100, height: 20)
+plot.render
+
 puts 'Learned Policy'
 state = environment.reset 
-max_actions_per_episode.times do
+max_actions_per_episode.times do |i|
   action = agent.predict(state) 
   state, _, done = environment.step(action.to_i)
-  environment.render($stdout)
+  #environment.render($stdout)
   if done
-    warn 'Goal reached!'
+    warn 'Goal reached in ' + i.to_s + ' steps.'
+
     break
   end 
 end

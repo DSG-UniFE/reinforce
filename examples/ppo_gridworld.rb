@@ -20,7 +20,7 @@ environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacle
 
 # Parameters
 learning_rate = 0.001
-episodes = 2500
+episodes = 1500
 max_actions_per_episode = 150
 
 # Create the agent
@@ -52,6 +52,8 @@ plot = UnicodePlot.lineplot(agent.logs[:loss], title: "Loss", width: 100, height
 plot.render
 plot = UnicodePlot.lineplot(agent.logs[:episode_reward], title: "Rewards", width: 100, height: 20)
 plot.render
+plot = UnicodePlot.lineplot(agent.logs[:episode_length], title: "Episode Length", width: 100, height: 20)
+plot.render
 
 begin
 10.times do
@@ -63,7 +65,7 @@ begin
     #warn "action: #{action} #{action.to_i}"
     state, _, done = environment.step(action.to_i)
     #warn "State: #{state}, Action: #{environment.actions[action]}"
-    environment.render($stdout)
+    #environment.render($stdout)
     if done
       warn 'Goal reached! In moves: ' + moves.to_s + 'moves'
       break

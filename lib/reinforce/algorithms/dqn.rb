@@ -14,6 +14,7 @@ module Reinforce
     # This class implements a Reinforcement Learning agent that uses the
     # Deep Q Network algorithm.
     class DQN
+      attr_reader :logs
       def initialize(environment, learning_rate=2.5e-4, discount_factor=0.99, epsilon = 0.9)
         @environment = environment
         @q_function_model = QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
@@ -29,6 +30,7 @@ module Reinforce
         @update_frequency_for_q_target = 500
         @optimizer = Torch::Optim::Adam.new(@q_function_model.parameters, lr: 0.001)
         @discount_factor = discount_factor
+        @logs = {loss: [], episode_reward: [], episode_length: []}
       end
 
       def choose_action(state, epsilon)
@@ -67,12 +69,14 @@ module Reinforce
 
         state = @environment.reset
         actions_left = batch_size
+        episode_length = 0
+        episode_reward = 0
 
         # Training loop
         1.upto(total_steps) do 
           # warn "Episode: #{episode_number}"
           progress = global_step.to_f / total_steps * 100
-          print "\rTraining: #{progress.round(2)}%"
+          print "\rTraining: #{progress.round(2)}%" if global_step % 100 == 0
           # Reset the environment
 
           # Setup number of actions to take before updating the Q function
@@ -83,6 +87,8 @@ module Reinforce
           # Take the action and observe the next state and reward
           next_state, reward, done = @environment.step(action.to_i)
           actions_left -= 1
+          episode_length += 1
+          episode_reward += reward
 
           # Store the experience in the replay memory
           @prioritized_experience_replay.update(state, action, next_state, reward, done)
@@ -110,7 +116,8 @@ module Reinforce
               end
               criterion = Torch::NN::MSELoss.new
               loss = criterion.call(told_val, target)
-              #warn "Loss: #{loss}"
+              @logs[:loss] << loss.item
+              #warn "Loss: #{loss.item}"
               @optimizer.zero_grad
               loss.backward
               @optimizer.step
@@ -128,6 +135,10 @@ module Reinforce
           if done || actions_left.zero? # Reached the goal state
             actions_left = batch_size
             state = @environment.reset
+            @logs[:episode_reward] << episode_reward
+            @logs[:episode_length] << episode_length
+            episode_reward = 0
+            episode_length = 0
           end
 
           # Decay epsilon

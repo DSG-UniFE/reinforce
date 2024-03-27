@@ -12,12 +12,16 @@ module Reinforce
     # This class implements a Reinforcement Learning agent that uses the
     # n-step SARSA algorithm with an epsilon greedy policy.
     class SARSA
+      
+      attr_reader :logs
+
       def initialize(environment, q_function_model, epsilon = 0.01)
         @environment = environment
         @q_function_model = q_function_model
         @initial_epsilon = epsilon
         # Create a store for learning experience
         @experience = ::Reinforce::Experience.new
+        @logs = {loss: [], episode_reward: [], episode_length: []}
       end
 
       def choose_action(state, epsilon)
@@ -53,11 +57,13 @@ module Reinforce
         # of it.
         epsilon = @initial_epsilon
 
+        episode_reward = 0
+        episode_length = 0
         # Training loop
         1.upto(num_episodes) do |episode_number|
           #puts "Episode: #{episode_number} epsilon: #{epsilon}"
           progress = episode_number.to_f / num_episodes * 100
-          print "\rTraining: #{progress.round(2)}%"
+          print "\rTraining: #{progress.round(2)}%" if episode_number % 10 == 0
           # Reset the environment
           state = @environment.reset
 
@@ -72,6 +78,8 @@ module Reinforce
             # Take the action and observe the next state and reward
             next_state, reward, done = @environment.step(action.to_i)
             actions_left -= 1
+            episode_length += 1
+            episode_reward += reward
 
             next_action = choose_action(state, epsilon)
             # Update the agent
@@ -80,12 +88,17 @@ module Reinforce
             state = next_state
             action = next_action
 
-            break if done || actions_left.zero? # Reached the goal state
+            if done || actions_left.zero? # Reached the goal state
+              @logs[:episode_reward] << episode_reward
+              @logs[:episode_length] << episode_length
+              episode_length = 0
+              break
+            end
           end
 
           # Update Q function after each batch of actions
-          @q_function_model.update(@experience)
-
+          lvalue = @q_function_model.update(@experience)
+          @logs[:loss] << lvalue
           # Decay epsilon
           epsilon = @initial_epsilon * (num_episodes - episode_number) / num_episodes
 

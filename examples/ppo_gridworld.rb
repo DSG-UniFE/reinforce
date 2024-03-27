@@ -3,7 +3,7 @@
 
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
-
+require 'reinforce'
 require_relative '../lib/reinforce/q_function_ann'
 require_relative '../lib/reinforce/algorithms/ppo'
 require_relative '../lib/reinforce/environments/gridworld'
@@ -20,7 +20,7 @@ environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacle
 
 # Parameters
 learning_rate = 0.001
-episodes = 1500
+episodes = 3_000
 max_actions_per_episode = 150
 
 # Create the agent
@@ -48,12 +48,13 @@ agent.save('gridworld_ppo.pth')
 agent.eval
 # Print the learned policy
 puts 'Learned Policy'
-plot = UnicodePlot.lineplot(agent.logs[:loss], title: "Loss", width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: "Loss", width: 100, height: 20)
 plot.render
-plot = UnicodePlot.lineplot(agent.logs[:episode_reward], title: "Rewards", width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: "Rewards", width: 100, height: 20)
 plot.render
-plot = UnicodePlot.lineplot(agent.logs[:episode_length], title: "Episode Length", width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
 plot.render
+
 
 begin
 10.times do

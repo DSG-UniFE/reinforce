@@ -19,9 +19,9 @@ module Reinforce
 
       def reset 
         @done = false
-        taxi_location = Array.new(2) { rand(@num_location) }
-        passenger_location = Array.new(2) { rand(@num_location) }
-        destination = Array.new(2) { rand(@num_location) }
+        taxi_location = [0, 0]#Array.new(2) { rand(@num_location) }
+        passenger_location = [2,2]#Array.new(2) { rand(@num_location) }
+        destination = [4,4]#Array.new(2) { rand(@num_location) }
         @passenger_in_taxi = 0
         @state = [taxi_location.dup, passenger_location.dup, destination.dup].flatten
       end
@@ -51,10 +51,9 @@ module Reinforce
         when :pickup
           if taxi_location == passenger_location && @passenger_in_taxi == 0
             @passenger_in_taxi = 1
-            reward = 10
             warn "Passenger picked up!"
           else
-            reward = -10
+            reward += -10
           end
         when :dropoff
           if taxi_location == destination && @passenger_in_taxi == 1
@@ -62,10 +61,11 @@ module Reinforce
             @done = true
             warn "Task Completed!"
           else
-            reward = -10
+            reward += -10
           end
         end
-
+# the gynnasium environment does not support that
+=begin
         # if not pickup or dropoff add a reward component to drive the taxi
         # close to the pickup point (when taxi is free) or to the dropoff point
         if action != :pickup && action != :dropoff
@@ -73,7 +73,7 @@ module Reinforce
           # Calculate euclidean distance between taxi_location and whereto
           reward += 1.0 / (1 + Math.sqrt((taxi_location[0] - whereto[0])**2 + (taxi_location[1] - whereto[1])**2))
         end
-        
+=end
         @state = [taxi_location.dup, passenger_location.dup, destination.dup].flatten
 
         [@state, reward, @done]

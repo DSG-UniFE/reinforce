@@ -90,12 +90,14 @@ module Reinforce
       #warn "target_actions: #{target_actions.inspect}"
       # Calculate the loss
       loss = criterion.call(taken_q_values, Torch::Tensor.new(target_actions))
+      lvalue = loss.item
       # Log the loss
       # warn "Loss: #{loss}"
       # Backpropagate the loss
       loss.backward
       # Update the weights
       @optimizer.step
+      lvalue
     end
 
     def soft_update(q_network, tau)

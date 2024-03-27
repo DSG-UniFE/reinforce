@@ -3,7 +3,7 @@
 
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
-
+require 'reinforce'
 require_relative '../lib/reinforce/q_function_ann'
 require_relative '../lib/reinforce/algorithms/dqn'
 require_relative '../lib/reinforce/environments/gridworld'
@@ -35,11 +35,11 @@ agent.train(episodes, max_actions_per_episode)
 agent.save('gridworld_dqn.pth')
 # Print the learned policy
 
-plot = UnicodePlot.lineplot(agent.logs[:loss], title: "Loss", width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: "Loss", width: 100, height: 20)
 plot.render
-plot = UnicodePlot.lineplot(agent.logs[:episode_reward], title: "Rewards", width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: "Rewards", width: 100, height: 20)
 plot.render
-plot = UnicodePlot.lineplot(agent.logs[:episode_length], title: "Episode Length", width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
 plot.render
 
 puts 'Learned Policy'
@@ -50,7 +50,6 @@ max_actions_per_episode.times do |i|
   #environment.render($stdout)
   if done
     warn 'Goal reached in ' + i.to_s + ' steps.'
-
     break
   end 
 end

@@ -19,8 +19,8 @@ num_actions = environment.actions.size
 # Train the agent
 learning_rate = 0.01
 discount_factor = 0.7
-episodes = 1500
-max_actions_per_episode = 100
+episodes = 5_000
+max_actions_per_episode = 150
 epsilon = 0.8
 
 warn "State size: #{state_size} actions: #{num_actions}"
@@ -38,14 +38,16 @@ agent.train(episodes, max_actions_per_episode)
 agent.save('taxi_sarsa.pth')
 
 # Print the learned policy
-state = environment.reset
-puts 'Learned Policy'
-100.times do |_|
-    action = agent.predict(state)
-    state, reward, done = environment.step(action.to_i)
-    environment.render
-    if done
-      puts "Task Completed!"
-      break
-    end
+testing_episodes = 10
+testing_episodes.times do
+  state = environment.reset
+  max_actions_per_episode.times do |i|
+      action = agent.predict(state)
+      state, reward, done = environment.step(action.to_i)
+      #environment.render
+      if done
+        puts "Task Completed! in #{i} steps"
+        break
+      end
+  end
 end

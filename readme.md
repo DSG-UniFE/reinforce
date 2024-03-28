@@ -1,8 +1,11 @@
 # Reinforce
 
-This is my Reinforcement Learning (RL) library.
+This is a Reinforcement Learning (RL) library built on top of Ruby at the University of Ferrara, Italy. 
+The library is in its early stages of development and is not yet ready for production use. 
 
-At the moment, it is simply a personal playground that I set up to learn some technical and/or implementation details of RL algorithms. I hope that in time it could grow and become a mature product.
+At the moment, it is simply a playground that we set up to learn some technical and/or implementation details of RL algorithms. I hope that in time it could grow and become a mature product.
+
+Reinforce requires the torch.rb gem, which provides Ruby bindings for the PyTorch library. 
 
 [![Development Status](https://github.com/mtortonesi/reinforce/workflows/Test/badge.svg)](https://github.com/mtortonesi/reinforce/actions?workflow=Test)
 
@@ -19,15 +22,20 @@ If bundler is not being used to manage dependencies, install the gem by executin
 
 ## Usage
 
-TODO: Write usage instructions here
+Train a DQN agent to solve the GridWorld environment:
+```ruby
+bundle exec examples/dqn_gridworld.rb
+```
+By default the DQN policy is saved. You can test the trained policy by executing:
+```ruby
+bundle exec examples/dqn_gridworld_test.rb
+```
 
-## Development
-
-After checking out the repo, run `bin/setup` to install dependencies. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
 
 ## Contributing
+
+Many thanks to Mauro Tortonesi and Filippo Poltronieri who are currently developing the library.
+All contributions are welcome.
 
 We welcome contributions to this project.
 
@@ -37,6 +45,9 @@ We welcome contributions to this project.
 4.  Push to the branch (`git push origin my-new-feature`).
 5.  Create new Pull Request.
 
+## License
+
+MIT license. 
 ### Developer Certificate of Origin
 
 This project uses the [Developer Certificate of Origin](https://developercertificate.org/). All contributors to this project must agree to this document to have their contributions accepted.
@@ -45,6 +56,4 @@ This project uses the [Developer Certificate of Origin](https://developercertifi
 
 This project is governed by [Contributor Covenant](https://www.contributor-covenant.org/). All contributors and participants agree to abide by its terms.
 
-## Code of Conduct
 
-Everyone interacting in the Reinforce project's codebases, issue trackers, chat rooms and mailing lists is expected to follow the [code of conduct](https://github.com/[USERNAME]/reinforce/blob/main/CODE_OF_CONDUCT.md).

@@ -5,13 +5,15 @@
 # Copyright, 2023, by Mauro Tortonesi.
 
 require_relative '../lib/reinforce/q_function_ann'
-require_relative '../lib/reinforce/environments/taxiv2'
+require_relative '../lib/reinforce/environments/taxi'
 require_relative '../lib/reinforce/algorithms/dqn'
 require 'torch'
 require 'forwardable'
+require 'unicode_plot'
+require 'reinforce'
 
 # Create the environment
-environment = Reinforce::Environments::TaxiV2.new
+environment = Reinforce::Environments::Taxi.new
 state_size = environment.state_size
 num_actions = environment.actions.size
 
@@ -33,14 +35,21 @@ agent.train(episodes, max_actions_per_episode)
 # Save the model
 agent.save('taxi_dqn.pth')
 
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: "Loss", width: 100, height: 20)
+plot.render
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: "Rewards", width: 100, height: 20)
+plot.render
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
+plot.render
+
+
 # Print the learned policy
 state = environment.reset
 puts 'Learned Policy'
 max_actions_per_episode.times do |_|
   action = agent.predict(state)
-  state, reward, done = environment.step(action)
-  puts "Action: #{environment.actions[action]}, Reward: #{reward}"
-  environment.render
+  state, reward, done = environment.step(action.to_i)
+  #environment.render
   if done
     puts "Task Completed!"
     break

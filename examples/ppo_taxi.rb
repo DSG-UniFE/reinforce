@@ -8,7 +8,9 @@ require_relative '../lib/reinforce/q_function_ann'
 require_relative '../lib/reinforce/algorithms/ppo'
 require_relative '../lib/reinforce/environments/taxiv2'
 require 'torch'
+require 'reinforce'
 require 'forwardable'
+require 'unicode_plot'
 
 # Create the environment
 environment = Reinforce::Environments::TaxiV2.new
@@ -20,12 +22,20 @@ max_actions_per_episode = 125
 
 # Create the agent
 agent = Reinforce::Algorithms::PPO.new(environment, learning_rate)
-
+puts "State size: #{environment.state_size}"
 # Train the agent
 agent.train(episodes, max_actions_per_episode)
 
 
 agent.save('taxi_ppo.pth')
+
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: "Loss", width: 100, height: 20)
+plot.render
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: "Rewards", width: 100, height: 20)
+plot.render
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
+plot.render
+
 
 # put in eval mode
 agent.eval

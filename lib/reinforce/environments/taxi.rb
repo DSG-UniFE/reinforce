@@ -7,7 +7,7 @@ module Reinforce
         @action = 0
         @reward = 0
         @done = false
-        @num_location = 5
+        @num_location = 4
         @num_passenger = 1
         @num_destination = 4
         reset
@@ -49,14 +49,13 @@ module Reinforce
         when :pickup
           if taxi_location == @passenger_location && @passenger_in_taxi == 0
             @passenger_in_taxi = 1
-            reward = 10
             warn "Passenger picked up!"
           else
             reward = -10
           end
         when :dropoff
           if taxi_location == @destination && @passenger_in_taxi == 1
-            reward = 20
+            reward = 1
             @done = true
             warn "Task Completed!"
           else

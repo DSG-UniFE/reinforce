@@ -7,7 +7,7 @@ module Reinforce
         @action = 0
         @reward = 0
         @done = false
-        @num_location = 5
+        @num_location = 4
         @num_passenger = 1
         @num_destination = 1
         reset
@@ -21,7 +21,7 @@ module Reinforce
         @done = false
         taxi_location = [0, 0]#Array.new(2) { rand(@num_location) }
         passenger_location = [2,2]#Array.new(2) { rand(@num_location) }
-        destination = [4,4]#Array.new(2) { rand(@num_location) }
+        destination = [3,3]#Array.new(2) { rand(@num_location) }
         @passenger_in_taxi = 0
         @state = [taxi_location.dup, passenger_location.dup, destination.dup].flatten
       end
@@ -52,6 +52,7 @@ module Reinforce
           if taxi_location == passenger_location && @passenger_in_taxi == 0
             @passenger_in_taxi = 1
             warn "Passenger picked up!"
+            #reward = 5
           else
             reward += -10
           end

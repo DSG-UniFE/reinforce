@@ -7,7 +7,6 @@ At the moment, it is simply a playground that we set up to learn some technical 
 
 Reinforce requires the torch.rb gem, which provides Ruby bindings for the PyTorch library. 
 
-[![Development Status](https://github.com/mtortonesi/reinforce/workflows/Test/badge.svg)](https://github.com/mtortonesi/reinforce/actions?workflow=Test)
 
 ## Installation
 
@@ -23,13 +22,12 @@ If bundler is not being used to manage dependencies, install the gem by executin
 ## Usage
 
 Train a DQN agent to solve the GridWorld environment:
-```ruby
-bundle exec examples/dqn_gridworld.rb
-```
+    
+    $ bundle exec examples/dqn_gridworld.rb
+
 By default the DQN policy is saved. You can test the trained policy by executing:
-```ruby
-bundle exec examples/dqn_gridworld_test.rb
-```
+
+    $ bundle exec examples/dqn_gridworld_test.rb
 
 
 ## Contributing
@@ -47,7 +45,8 @@ We welcome contributions to this project.
 
 ## License
 
-MIT license. 
+This software is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+
 ### Developer Certificate of Origin
 
 This project uses the [Developer Certificate of Origin](https://developercertificate.org/). All contributors to this project must agree to this document to have their contributions accepted.

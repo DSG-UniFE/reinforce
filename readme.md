@@ -29,10 +29,16 @@ By default the DQN policy is saved. You can test the trained policy by executing
 
     $ bundle exec examples/dqn_gridworld_test.rb
 
-### Define an environment
+## Define a new environment
 
 Defining a new environment is fairly simple. Use the examples environment as guide in defining your own.
-
+All you need is to wrap your environment in a class that defines the following methods:
+1. `initialize` - Initialize the environment.
+2. reset - Reset the environment to its initial state.
+3. state_size - Return the size of the state space.
+4. actions - Return the action space; you can retrieve the number of actions by calling `actions.size`.
+5. step - Execute an action in the environment and return the next state, reward, done, and info.
+6. render - Render the environment on specified output, e.g, `$stdout` (optional).
 
 ## Contributing
 

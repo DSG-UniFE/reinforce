@@ -7,6 +7,22 @@ At the moment, it is simply a playground that we set up to learn some technical 
 
 Reinforce requires the torch.rb gem, which provides Ruby bindings for the PyTorch library. 
 
+## Prerequisites
+
+The installation of torch.rb might require some tweaks depending on your system. 
+On MacOs you can install libtorch using Homebrew:
+    
+    $ brew install pytorch
+
+On Linux instead you need to first download libtorch from [here](https://pytorch.org/), and then extract the archive in a folder of your choice.
+Then you need add the following configuration to your project:
+
+
+    $ bundle config build.torch-rb --with-torch-dir=/path/to/libtorch
+
+This will configure the bundler to build torch.rb using the libtorch installation in the specified directory.
+
+For more info, please visit the torch.rb's [github repo](https://github.com/ankane/torch.rb) 
 
 ## Installation
 

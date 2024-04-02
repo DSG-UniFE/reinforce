@@ -2,11 +2,9 @@
 # frozen_string_literal: true
 
 # Released under the MIT License.
-# Copyright, 2023, by Mauro Tortonesi.
+# Copyright, 2023, by Mauro Tortonesi and Filippo Poltronieri.
+
 require 'reinforce'
-require_relative '../lib/reinforce/q_function_ann'
-require_relative '../lib/reinforce/algorithms/dqn'
-require_relative '../lib/reinforce/environments/gridworld'
 require 'torch'
 require 'forwardable'
 require 'unicode_plot'
@@ -26,9 +24,13 @@ discount_factor = 0.99
 episodes = 1_500
 max_actions_per_episode = 150
 
+q_function_model = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
+q_function_model_target = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
+
 
 # Create the agent
-agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_factor)
+agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_factor, 
+                                       q_function_model: q_function_model, q_function_model_target: q_function_model_target)
 
 # Train the agent
 agent.train(episodes, max_actions_per_episode)

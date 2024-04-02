@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Released under the MIT License.
-# Copyright, 2023, by Mauro Tortonesi.
+# Copyright, 2023, by Mauro Tortonesi and Filippo Poltronieri.
 
 module Reinforce
   module Environments

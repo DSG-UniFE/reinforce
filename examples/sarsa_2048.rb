@@ -4,9 +4,7 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi, Filippo Poltronieri.
 
-require_relative '../lib/reinforce/q_function_ann'
-require_relative '../lib/reinforce/algorithms/sarsa'
-require_relative '../lib/reinforce/environments/game_2048'
+require 'reinforce'
 require 'torch'
 require 'forwardable'
 

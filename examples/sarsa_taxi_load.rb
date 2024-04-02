@@ -2,11 +2,9 @@
 # frozen_string_literal: true
 
 # Released under the MIT License.
-# Copyright, 2023, by Mauro Tortonesi.
+# Copyright, 2023, by Mauro Tortonesi and Filippo Poltronieri.
 
-require_relative '../lib/reinforce/q_function_ann'
-require_relative '../lib/reinforce/algorithms/sarsa'
-require_relative '../lib/reinforce/environments/taxiv2'
+require 'reinforce'
 require 'torch'
 require 'forwardable'
 

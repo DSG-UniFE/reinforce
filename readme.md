@@ -29,6 +29,10 @@ By default the DQN policy is saved. You can test the trained policy by executing
 
     $ bundle exec examples/dqn_gridworld_test.rb
 
+### Define an environment
+
+Defining a new environment is fairly simple. Use the examples environment as guide in defining your own.
+
 
 ## Contributing
 

@@ -143,7 +143,7 @@ module Reinforce
       def check_game_over
         if !@board.flatten.include?(0) && !can_merge_tiles?
           @done = true
-          warn "Game Over. Final score: #{@score}"
+          #warn "Game Over. Final score: #{@score}"
         else
           @done = false
         end

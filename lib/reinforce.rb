@@ -4,6 +4,13 @@
 # Copyright, 2023, by Mauro Tortonesi.
 
 require_relative "reinforce/version"
+puts "#{__dir__}"
+# Require environments, algorithms, and helper functions
+Dir["#{__dir__}/reinforce/*.rb"].each { |file| require_relative ".#{file.gsub(__dir__, '')}" }
+# require_relative all files in reinforce/algorithms
+Dir["#{__dir__}/reinforce/algorithms/*.rb"].each { |file| require_relative ".#{file.gsub(__dir__, '')}" }
+# require_relative all files in reinforce/environments
+Dir["#{__dir__}/reinforce/environments/*.rb"].each { |file| require_relative ".#{file.gsub(__dir__, '')}" }
 
 module Reinforce
   

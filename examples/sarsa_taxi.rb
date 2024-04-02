@@ -4,9 +4,7 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
-require_relative '../lib/reinforce/q_function_ann'
-require_relative '../lib/reinforce/algorithms/sarsa'
-require_relative '../lib/reinforce/environments/taxi'
+require 'reinforce'
 require 'torch'
 require 'forwardable'
 

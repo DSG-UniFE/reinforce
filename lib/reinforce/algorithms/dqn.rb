@@ -14,11 +14,22 @@ module Reinforce
     # This class implements a Reinforcement Learning agent that uses the
     # Deep Q Network algorithm.
     class DQN
+
       attr_reader :logs
-      def initialize(environment, learning_rate=2.5e-4, discount_factor=0.99, epsilon = 0.9)
+
+      def initialize(environment, learning_rate=2.5e-4, discount_factor=0.99, epsilon = 0.9, q_function_model: nil,
+                     q_function_model_target: nil)
         @environment = environment
-        @q_function_model = QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
-        @q_function_model_target = QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
+        if q_function_model.nil?
+          @q_function_model = QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
+        else 
+          @q_function_model = q_function_model
+        end 
+        if q_function_model_target.nil?
+          @q_function_model_target = QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
+        else 
+          @q_function_model_target = q_function_model_target
+        end
         # Create prioritized experience replay store
         @prioritized_experience_replay = PrioritizedExperienceReplay.new
         # tau is the Polyak averaging parameter, it should be between 0 and 1

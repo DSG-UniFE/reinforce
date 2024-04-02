@@ -4,9 +4,6 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
-require_relative '../lib/reinforce/q_function_ann'
-require_relative '../lib/reinforce/algorithms/ppo'
-require_relative '../lib/reinforce/environments/taxiv2'
 require 'torch'
 require 'reinforce'
 require 'forwardable'

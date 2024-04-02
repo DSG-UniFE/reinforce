@@ -25,7 +25,7 @@ plot.render
 plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: 'Episode Length', width: 100, height: 20)
 plot.render
 
-testing_episodes = 100
+testing_episodes = 10
 
 testing_episodes.times do |i|
   moves = 0
@@ -33,6 +33,7 @@ testing_episodes.times do |i|
   max_actions_per_episode.times do
     action = agent.predict(state)
     state, _, done = environment.step(action.to_i)
+    environment.render($stdout)
     moves += 1
     if done
       warn 'Goal reached!' + "in #{moves} moves."

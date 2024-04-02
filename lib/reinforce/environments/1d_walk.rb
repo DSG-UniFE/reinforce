@@ -54,7 +54,7 @@ module Reinforce
     end
 
     def render(output)
-      @size.each do |i|
+      @size.times do |i|
         if i == @state[0]
           output.print 'A'
         elsif i == @goal
@@ -63,6 +63,7 @@ module Reinforce
         output.print '.'
         end
       end
+      output.print "\n"
     end
 
   end

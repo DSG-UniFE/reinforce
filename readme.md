@@ -3,7 +3,7 @@
 This is a Reinforcement Learning (RL) library built on top of Ruby at the University of Ferrara, Italy. 
 The library is in its early stages of development and is not yet ready for production use. 
 
-At the moment, it is simply a playground that we set up to learn some technical and/or implementation details of RL algorithms. I hope that in time it could grow and become a mature product.
+At the moment, it is simply a playground that we set up to learn some technical and/or implementation details of RL algorithms. We hope that in time it could grow and become a mature product.
 
 Reinforce requires the torch.rb gem, which provides Ruby bindings for the PyTorch library. 
 
@@ -42,7 +42,7 @@ All you need is to wrap your environment in a class that defines the following m
 
 ## Contributing
 
-Many thanks to Mauro Tortonesi and Filippo Poltronieri who are currently developing the library.
+Many thanks to Prof. Mauro Tortonesi and Filippo Poltronieri who are currently developing the library.
 All contributions are welcome.
 
 We welcome contributions to this project.

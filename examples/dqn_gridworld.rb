@@ -24,8 +24,32 @@ discount_factor = 0.99
 episodes = 1_500
 max_actions_per_episode = 150
 
-q_function_model = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
-q_function_model_target = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
+# DQN initializes by default the two Q networks. However it is possible to pass them as arguments
+
+# QFunctionAnn intialize a default architecture for the Q-Networks
+# it can be modified by passing the architecture as a parameter.
+
+architectureq = Torch::NN::Sequential.new(
+          Torch::NN::Linear.new(state_size, 128),
+          Torch::NN::ReLU.new,
+          Torch::NN::Linear.new(128, 128),
+          Torch::NN::ReLU.new,
+          Torch::NN::Linear.new(128, num_actions)
+        )
+
+q_function_model = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size, 
+                                              learning_rate, discount_factor, architecture: architectureq)
+
+architectureqt = Torch::NN::Sequential.new(
+          Torch::NN::Linear.new(state_size, 128),
+          Torch::NN::ReLU.new,
+          Torch::NN::Linear.new(128, 128),
+          Torch::NN::ReLU.new,
+          Torch::NN::Linear.new(128, num_actions)
+        )
+
+q_function_model_target = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size,
+                                                      learning_rate, discount_factor , architecture: architectureqt)
 
 
 # Create the agent

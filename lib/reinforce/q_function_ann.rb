@@ -15,15 +15,19 @@ module Reinforce
     def_delegators :@architecture, :apply, :parameters, :state_dict, :load_state_dict
     attr_reader :optimizer, :architecture
 
-    def initialize(state_size, num_actions, learning_rate, discount_factor)
+    def initialize(state_size, num_actions, learning_rate, discount_factor, architecture: nil)
       @num_actions = num_actions
-      @architecture = Torch::NN::Sequential.new(
-        Torch::NN::Linear.new(state_size, 512),
-        Torch::NN::ReLU.new,
-        Torch::NN::Linear.new(512, 512),
-        Torch::NN::ReLU.new,
-        Torch::NN::Linear.new(512, num_actions)
-      )
+      if architecture.nil?
+        @architecture = Torch::NN::Sequential.new(
+          Torch::NN::Linear.new(state_size, 512),
+          Torch::NN::ReLU.new,
+          Torch::NN::Linear.new(512, 512),
+          Torch::NN::ReLU.new,
+          Torch::NN::Linear.new(512, num_actions)
+        )
+      else
+        @architecture = architecture
+      end
       @architecture.train # Enable training mode
       # Create the optimizer
       @optimizer = Torch::Optim::Adam.new(@architecture.parameters, lr: learning_rate)

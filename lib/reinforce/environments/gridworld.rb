@@ -16,8 +16,11 @@ module Reinforce
         @goal = goal
         @obstacles_num = obstacles_num
         # TODO: Check if we can remove the following line
-        @obstacles = Array.new(@obstacles_num) { |_| [1 + rand(@size - 2), 1 + rand(@size - 2)] }
-        @state = @start.dup
+        @obstacles = nil 
+        @state = nil
+        reset
+        #Array.new(@obstacles_num) { |_| [1 + rand(@size - 2), 1 + rand(@size - 2)] }
+        #@state = @start.dup
       end
 
       def reset

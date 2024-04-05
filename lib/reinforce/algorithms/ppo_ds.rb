@@ -244,19 +244,6 @@ module Reinforce
                       logratio = newlogprob - b_logprobs[Torch.tensor(mb_inds)]
                       ratio = logratio.exp
 
-                      # Calculate the clipfrac
-                      # Not logging them at the moment
-=begin
-                      Torch.no_grad do
-                        ratiom = (ratio - Torch.tensor(1)).abs()
-                        trues = 0
-                        ratiom.to_a.each do |r|
-                          trues += 1 if r.to_f > @clip_param
-                        end
-                        meanratio = trues / ratiom.to_a.size
-                        clipfracs << meanratio
-                      end
-=end
                       mb_advantages = b_advantages[Torch.tensor(mb_inds)]
                       # if we want to normalize the advantages
                       # use the configuration below

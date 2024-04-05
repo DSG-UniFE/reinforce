@@ -99,7 +99,7 @@ module Reinforce
             #warn "Picked up an object! #{object}"
             object[3] = 1.0 if object[3] == 0.0
             #warn "After pickup! #{object}"
-            reward = 2
+            reward = 5
             @picked_objects += 1
           end
         else
@@ -113,12 +113,15 @@ module Reinforce
         goal_position = goal_position[0] if goal_position != []
         #warn "goal_position: #{goal_position} agent_position: #{agent_position}"
         if agent_position[1] == goal_position[1] && agent_position[2] == goal_position[2]
-          reward += 5
+          #warn "Goal reached!"
+          reward += 10
           done = true
         end
         # calculate the distance between the agent and the goal 
         distance_to_goal = (agent_position[1] - goal_position[1]).abs + (agent_position[2] - goal_position[2]).abs
-        reward += -distance_to_goal if reward < 1
+        # maximum distance 
+        max_distance = 2 * @size
+        reward += -(distance_to_goal / max_distance.to_f) if reward < 1
         #warn "Returning state: #{@state}, reward: #{reward}, done: #{done}"
         return [state, reward, done]
       end
@@ -126,11 +129,11 @@ module Reinforce
     def render(output_stream)
       @size.times do |i|
         @size.times do |j|
-          if @state.include?([0, i, j])
+          if @state.include?([0, i, j, -1])
         output_stream.print 'A'
-          elsif @state.include?([1, i, j])
+          elsif @state.include?([1, i, j, -1])
         output_stream.print 'G'
-          elsif @state.include?([2, i, j])
+          elsif @state.include?([2, i, j, 0])
         output_stream.print 'O'
           else
         output_stream.print '.'

@@ -44,6 +44,10 @@ module Reinforce
     def actions
       @environment.actions
     end
+
+    def render(output)
+      @environment.render(output)
+    end
   end 
 
   # torch.rb does not define a binding for the ELU activation function in the Torch::NN module.
@@ -60,8 +64,8 @@ module Reinforce
       # x: input tensor
       # implement the mathematically defined ELU activation function
       # return: output tensor
-      @alpha * Torch.exp(x) - 1
-      #Torch.where(x > 0, x, @alpha * (Torch.exp(x) - 1))
+      #@alpha * Torch.exp(x) - 1
+      Torch.where(x > 0, x, @alpha * (Torch.exp(x) - 1))
     end
   end 
 
@@ -78,9 +82,6 @@ module Reinforce
       # x: (batch_:size, n_elements, in_channels)
       # return: (batch_size, n_elements)
       xm,_ = Torch.max(x, dim: 1, keepdim: true)
-      #warn "xm: #{xm.shape} xm: #{xm}"
-      #warn "lambda - gamma: #{(@lambda.call(x) - @gamma.call(xm)).shape}"
-      #warn "lambda.call(x) #{@lambda.call(x)}"
       @lambda.call(x) - @gamma.call(xm) 
     end
   end
@@ -90,11 +91,11 @@ module Reinforce
       warn "EquivariantDeepSet input_size: #{input_size}, hidden_size: #{hidden_size}"
       super()
       @net = Torch::NN::Sequential.new(
-      EquivariantLayer.new(input_size, hidden_size),
-      Torch::NN::ReLU.new,
-      EquivariantLayer.new(hidden_size, hidden_size),
-      Torch::NN::ReLU.new,
-      EquivariantLayer.new(hidden_size, 1)
+        EquivariantLayer.new(input_size, hidden_size),
+        Torch::NN::ReLU.new,
+        EquivariantLayer.new(hidden_size, hidden_size),
+        Torch::NN::ReLU.new,
+        EquivariantLayer.new(hidden_size, 1)
       )
     end
 
@@ -130,9 +131,7 @@ module Reinforce
     def forward(x)
       # x: (batch_size, n_elements, in_channels)
       # return: (batch_size, n_elements)
-      #warn "x in forward: #{x}"
       x = Torch.mean(@psi.call(x), dim: 1)
-      #warn "Invariant: x in forward: #{x}"
       return Torch.squeeze(@rho.call(x), dim: -1)
     end
 

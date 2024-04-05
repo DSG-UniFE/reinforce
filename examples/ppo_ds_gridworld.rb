@@ -22,7 +22,7 @@ warn "State Size: #{environment.state_size} #{state[0].length}"
 # Parameters
 learning_rate = 0.001
 episodes = 1_000
-max_actions_per_episode = 250
+max_actions_per_episode = 500
 
 # Create the dummy representation for the environment
 
@@ -31,30 +31,16 @@ environment = Reinforce::Algorithms::DummyVectorizedEnvironment.new(environment,
 # Create the agent
 agent = Reinforce::Algorithms::PPODS.new(environment, learning_rate)
 
-
-
 warn "Policy Model: #{agent.agent.policy_model}"
 
 # Train the agent
 agent.train(episodes, max_actions_per_episode)
-
-
 agent.save('ds_gridworld_ppo.pth')
+
 File.write('ds_gridworld_ppo_logs.conf', agent.logs.to_s)
 # put in eval mode
 agent.eval
-# Print the learned policy
-=begin
-puts 'Learned Policy'
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: "Loss", width: 100, height: 20)
-plot.render
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: "Rewards", width: 100, height: 20)
-plot.render
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
-plot.render
-=end
 
-begin
 10.times do
   state = environment.reset
   moves = 0
@@ -63,13 +49,13 @@ begin
     action = agent.predict(state)
     #warn "action: #{action} #{action.to_i}"
     state, _, done = environment.step(action.to_i)
-    #warn "State: #{state}, Action: #{environment.actions[action]}"
-    #environment.render($stdout)
-    if done
+    warn "State: #{state}, Action: #{environment.actions[action.to_i]}"
+    if done[0] == true
       warn 'Goal reached! In moves: ' + moves.to_s + 'moves'
+      environment.render($stdout)
       break
     end 
   end
 end
-end
+
 

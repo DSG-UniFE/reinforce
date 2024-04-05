@@ -15,7 +15,6 @@ module Reinforce
         @start = start
         @goal = goal
         @obstacles_num = obstacles_num
-        # TODO: Check if we can remove the following line
         @obstacles = nil 
         @state = nil
         reset

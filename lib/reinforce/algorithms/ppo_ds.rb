@@ -2,8 +2,10 @@
 
 require_relative '../experience'
 require_relative '../categorical_distribution'
-require 'torch'
 require_relative './deep_sets'
+require_relative '../dummy_vectorized_environment'
+require 'torch'
+
 
 module Reinforce
     module Algorithms

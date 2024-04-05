@@ -99,7 +99,7 @@ module Reinforce
             #warn "Picked up an object! #{object}"
             object[3] = 1.0 if object[3] == 0.0
             #warn "After pickup! #{object}"
-            reward = 5
+            reward = 10
             @picked_objects += 1
           end
         else

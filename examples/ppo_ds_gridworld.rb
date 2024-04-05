@@ -22,11 +22,11 @@ warn "State Size: #{environment.state_size} #{state[0].length}"
 # Parameters
 learning_rate = 0.001
 episodes = 1_000
-max_actions_per_episode = 500
+max_actions_per_episode = 250
 
 # Create the dummy representation for the environment
 
-environment = Reinforce::Algorithms::DummyVectorizedEnvironment.new(environment, 1)
+environment = Reinforce::DummyVectorizedEnvironment.new(environment, 1)
 
 # Create the agent
 agent = Reinforce::Algorithms::PPODS.new(environment, learning_rate)

@@ -19,7 +19,6 @@ warn "State Size: #{environment.state_size} #{state[0].length}"
 
 # Parameters
 learning_rate = 0.001
-episodes = 1_000
 max_actions_per_episode = 250
 
 # Create the dummy representation for the environment
@@ -38,6 +37,7 @@ File.write('ds_pacman_ppo_logs.conf', agent.logs.to_s)
 # put in eval mode
 agent.eval
 
+win = 0
 10.times do
   state = environment.reset
   moves = 0
@@ -49,14 +49,15 @@ agent.eval
     if done[0] == true
       warn 'Goal reached! In moves: ' + moves.to_s + 'moves'
       environment.render($stdout)
+      win += 1
       break
     end 
     if moves == max_actions_per_episode
-      warn 'Max moves reached'
-      environment.render($stdout)
+      #warn 'Max moves reached'
+      #environment.render($stdout)
       break
     end
   end
 end
 
-
+warn "Win: #{win}/10 episodes."

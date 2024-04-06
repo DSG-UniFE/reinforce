@@ -19,7 +19,7 @@ warn "Example State: #{state}"
 warn "State Size: #{environment.state_size} #{state[0].length}"
 
 # Parameters
-learning_rate = 0.001
+learning_rate = 2.5E-4
 episodes = 1_000
 max_actions_per_episode = 250
 

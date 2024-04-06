@@ -105,7 +105,7 @@ module Reinforce
         else
           #raise "Invalid action: #{action}"
           # the agent selected a wrong action so we give a negative reward
-          reward = -1E8 # a sort of action mapping here
+          reward = -1E2 # a sort of action mapping here
         end
         # check if the agent reached a terminal state (the goal position)
         # the agent should maximize the number of objects picked up but also reach the goal

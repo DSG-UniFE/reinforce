@@ -278,7 +278,7 @@ module Reinforce
 
                       @optimizer.zero_grad
 
-                      #warn "loss: #{loss}"     
+                      #warn "loss: #{loss}"  
                       loss.backward
                       # Gradient clipping calculation
                       clip_grad_norm_(@agent.parameters, @clip_param)

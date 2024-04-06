@@ -67,6 +67,7 @@ module Reinforce
         # Because we are using DeepSets. Let's check the vector with the item type 0
         agent_position = @state.select { |item| item[0] == 0 }
         agent_position = agent_position[0] if agent_position != []
+        curr_pos = agent_position.dup
         # the element at position 1 and 2 are the x and y coordinates of the agent
         # There are no obstacles in this simple implementation so let's assume the agent can move freely within the grid world
         reward = 0
@@ -94,14 +95,17 @@ module Reinforce
             # the agent picked up an object, let's flag the corresponding item to 1 (picked up) 
             #warn "Picked up an object! #{object}"
             object[3] = 1.0 if object[3] == 0.0
-            warn "After pickup! #{object}"
+            #warn "After pickup! #{object}"
             reward = 10
             @picked_objects += 1
           end
         else
           #raise "Invalid action: #{action}"
           # the agent selected a wrong action so we give a negative reward
-          reward = -1E8 # a sort of action mapping here
+          reward = -1E6 # a sort of action mapping here
+        end
+        if agent_position == curr_pos && action != :pick
+          reward = -10
         end
         # check if the agent reached a terminal state (the goal position)
         # the agent should maximize the number of objects picked up

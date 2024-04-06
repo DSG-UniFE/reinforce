@@ -227,7 +227,7 @@ module Reinforce
                   b_logprobs = logprobs.reshape(-1)
                   b_actions = actions.reshape(-1, 1)# + [@environment.actions.size])
                   #warn "b_actions: #{b_actions.shape}"
-                  b_returns = returns.reshape(-1, 1)
+                  b_returns = returns.reshape(-1)
                   b_advantages = advantages.reshape(-1)
                   b_values = values.reshape(-1)
 
@@ -242,6 +242,9 @@ module Reinforce
                       mb_inds = b_inds[start..end_s]
                       _, newlogprob, entropy, newvalue = @agent.get_action_and_value(b_obs[Torch.tensor(mb_inds)], b_actions[Torch.tensor(mb_inds)])
                       entropy = Torch.tensor(entropy)
+                      warn "b_obs: #{b_obs[Torch.tensor(mb_inds)]}" if entropy.to_f.nan?
+                      warn "b_actions: #{b_actions[Torch.tensor(mb_inds)]}" if entropy.to_f.nan?
+
                       #warn "newlogprob: #{newlogprob} @entropy: #{entropy} newvalue: #{newvalue}"
                       logratio = newlogprob - b_logprobs[Torch.tensor(mb_inds)]
                       ratio = logratio.exp
@@ -256,7 +259,7 @@ module Reinforce
                       pg_loss = Torch.max(pg_loss1, pg_loss2).mean()
 
                       # Use v_clip for calculating value loss
-                      newvalue = newvalue.reshape(-1)
+                      newvalue = newvalue.view(-1)
                       v_loss_unclipped = (newvalue - b_returns[Torch.tensor(mb_inds)]).pow(2)
                       v_clipped = b_values[Torch.tensor(mb_inds)] + Torch.clamp(newvalue - b_values[Torch.tensor(mb_inds)], -@clip_param, @clip_param)
                       v_loss_clipped = (v_clipped - b_returns[Torch.tensor(mb_inds)]).pow(2)
@@ -275,7 +278,7 @@ module Reinforce
 
                       @optimizer.zero_grad
 
-                      #warn "loss: #{loss}"     
+                      #warn "loss: #{loss}"
                       loss.backward
                       # Gradient clipping calculation
                       clip_grad_norm_(@agent.parameters, @clip_param)

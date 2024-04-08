@@ -37,6 +37,7 @@ module Reinforce
       end
 
       def reset
+        srand(0)
         @step = 0
         @picked_objects = 0
         @objects = Array.new(@object_num) { |_| [1 + rand(@size - 2), 1 + rand(@size - 2)] }

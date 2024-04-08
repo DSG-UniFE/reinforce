@@ -177,6 +177,7 @@ module Reinforce
                     #warn "reward: #{reward[0]}"
                     rewards[step] = reward
                     episode_reward += (reward.sum / reward.length)
+                    next_done = next_done[0]
                     if next_done == true || step == num_steps - 1
                       @logs[:episode_reward] << episode_reward
                       @logs[:episode_length] << episode_lenth
@@ -242,8 +243,8 @@ module Reinforce
                       mb_inds = b_inds[start..end_s]
                       _, newlogprob, entropy, newvalue = @agent.get_action_and_value(b_obs[Torch.tensor(mb_inds)], b_actions[Torch.tensor(mb_inds)])
                       entropy = Torch.tensor(entropy)
-                      warn "b_obs: #{b_obs[Torch.tensor(mb_inds)]}" if entropy.to_f.nan?
-                      warn "b_actions: #{b_actions[Torch.tensor(mb_inds)]}" if entropy.to_f.nan?
+                      #warn "b_obs: #{b_obs[Torch.tensor(mb_inds)]}" if entropy.to_f.nan?
+                      #warn "b_actions: #{b_actions[Torch.tensor(mb_inds)]}" if entropy.to_f.nan?
 
                       #warn "newlogprob: #{newlogprob} @entropy: #{entropy} newvalue: #{newvalue}"
                       logratio = newlogprob - b_logprobs[Torch.tensor(mb_inds)]

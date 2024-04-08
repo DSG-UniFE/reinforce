@@ -7,7 +7,7 @@ require 'torch'
 
 module Reinforce
   module Algorithms
-  
+
   class EquivariantLayer < Torch::NN::Module
     def initialize(input_size, output_size)
       #warn "EquivariantLayer: input_size: #{input_size}, output_size: #{output_size}"

@@ -16,7 +16,7 @@ module Reinforce
       # We want to define a state which is compatible with deep sets
       # So we need to definea state as a list of objects and the agent position
       # Each vector  will represent the item type (agent_position, goal, item) and the position
-      # we use an integer to represent the item type: 0 -> agent_position, 1 -> goal, 2 -> item
+      # we use an integer to represent the item type: 0 -> agent_position, 1 -> goal
       # The position is represented as a vector of two elements
       # The state is a list of vectors
       # The position of the agent is represented as following 
@@ -41,7 +41,7 @@ module Reinforce
         #warn "state: #{@state}, picked_objects: #{@picked_objects}"
         @step = 0
         @picked_objects = 0
-        @objects = Array.new(@object_num) { |_| [1 + rand(@size - 2), 1 + rand(@size - 2)] }
+        #@objects = Array.new(@object_num) { |_| [1 + rand(@size - 2), 1 + rand(@size - 2)] }
         encode_state
       end
 
@@ -49,9 +49,9 @@ module Reinforce
         @state = []
         @state << [0, @start[0], @start[1], -1].map(&:to_f)
         @state << [1, @goal[0], @goal[1], -1].map(&:to_f)
-        @objects.each do |obj|
-          @state << [2, obj[0], obj[1], 0].map(&:to_f)
-        end 
+        #@objects.each do |obj|
+        #  @state << [2, obj[0], obj[1], 0].map(&:to_f)
+        #end 
         @state
       end
 
@@ -83,29 +83,10 @@ module Reinforce
           agent_position[2] -= 1 unless (agent_position[2]) == 0.0
         when :right
           agent_position[2] += 1 unless agent_position[2] == (@size - 1)
-        when :pick
-          # check if the agent is on an object 
-          object_positions = @state.select { |item| item[0] == 2 }
-          # check if the agent is on an object
-          object = object_positions.select { |item| item[1] == agent_position[1] && item[2] == agent_position[2] }
-          #warn "object: #{object}"
-          if object == []
-            # the agent selected a wrong action so we give a negative reward
-            reward = -5
-          else 
-            # only one object can be at one position
-            object = object[0]
-            # the agent picked up an object, let's flag the corresponding item to 1 (picked up) 
-            #warn "Picked up an object! #{object}"
-            object[3] = 1.0 if object[3] == 0.0
-            #warn "After pickup! #{object}"
-            reward = 10
-            @picked_objects += 1
-          end
         else
           #raise "Invalid action: #{action}"
           # the agent selected a wrong action so we give a negative reward
-          reward = -1E2 # a sort of action mapping here
+          reward = -1E3 # a sort of action mapping here
         end
         # check if the agent reached a terminal state (the goal position)
         # the agent should maximize the number of objects picked up but also reach the goal
@@ -113,7 +94,6 @@ module Reinforce
         goal_position = goal_position[0] if goal_position != []
         #warn "goal_position: #{goal_position} agent_position: #{agent_position}"
         if agent_position[1] == goal_position[1] && agent_position[2] == goal_position[2]
-          #warn "Goal reached!"
           reward += 10
           done = true
         end

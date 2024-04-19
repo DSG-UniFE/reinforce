@@ -32,6 +32,10 @@ module Reinforce
       @states = Array.new(@num_envs) { @environment.reset }
     end
 
+    def action_masks
+      @environment.action_masks
+    end
+
     def actions
       @environment.actions
     end

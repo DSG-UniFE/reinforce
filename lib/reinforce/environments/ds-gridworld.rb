@@ -10,7 +10,7 @@ module Reinforce
     # And finally reach the goal
     # The action space is of dimension 5 (up, down, left, right, pick)
     class DSGridWorld
-      ACTIONS = %i[up down left right pick].freeze
+      ACTIONS = %i[up down left right].freeze
       attr_reader :state
       #srand(0)
       # We want to define a state which is compatible with deep sets
@@ -20,43 +20,46 @@ module Reinforce
       # The position is represented as a vector of two elements
       # The state is a list of vectors
       # The position of the agent is represented as following 
-      # e.g [0,2,3,-1] -> agent is at position 2,3. -1 is a placeholder for dont'care
-      # goal: [1, 4, 5, -1] -> goal is at position 4,5. -1 is a placeholder for dont'care
-      # item: [2, 6, 7, 0] -> item is at position 6,7. here 0 means that the item is not picked up, 1 means that the item is picked up
-      def initialize(size, start, goal, object_num = 5)
+      # e.g [0, 2, 3] -> agent is at position 2,3. 0 means the agent
+      # goal: [1, 4, 5] -> goal is at position 4,5. 1 it's the goal
+      # obstacles: [2, 6, 7] -> 2 is an obstacles is at position 6,7.
+      def initialize(size, start, goal, obstacles = 5)
         @size = size
         @start = start
         @goal = goal
-        @object_num = object_num
-        @objects = nil 
+        @obstacles_num = obstacles
+        @obstacles = nil
         @state = nil
-        @picked_objects = 0
         @max_steps = 250
-        @step = 0
+        @dstep = 0
         reset
       end
 
       def reset
         #warn "Resetting the environment after #{@step} steps."
-        #warn "state: #{@state}, picked_objects: #{@picked_objects}"
-        @step = 0
+        @dstep = 0
         @picked_objects = 0
-        #@objects = Array.new(@object_num) { |_| [1 + rand(@size - 2), 1 + rand(@size - 2)] }
+        @obstacles = Array.new(@obstacles_num) { |_| [1 + rand(@size - 2), 1 + rand(@size - 2)] }
         encode_state
       end
 
       def encode_state
         @state = []
-        @state << [0, @start[0], @start[1], -1].map(&:to_f)
-        @state << [1, @goal[0], @goal[1], -1].map(&:to_f)
-        #@objects.each do |obj|
-        #  @state << [2, obj[0], obj[1], 0].map(&:to_f)
-        #end 
-        @state
+        @state << [0, @start[0], @start[1]].map(&:to_f)
+        @state << [1, @goal[0], @goal[1]].map(&:to_f)
+        @obstacles.each do |obj|
+          @state << [2, obj[0], obj[1]].map(&:to_f)
+        end 
+        @state.clone
       end
 
       def actions
         ACTIONS
+      end
+
+      def action_masks
+        masks = Array.new(ACTIONS.size, 1)
+        masks
       end
 
       def state_size
@@ -65,15 +68,17 @@ module Reinforce
 
       def step(action)
         action = ACTIONS[action] if action.is_a?(Integer)
-        @step += 1
+        @dstep += 1
         # The state is encoded so we need to decode it to get the agent position, which can be any of the vectors in the state
         # Because we are using DeepSets. Let's check the vector with the item type 0
         agent_position = @state.select { |item| item[0] == 0 }
         agent_position = agent_position[0] if agent_position != []
+        current_position = agent_position.dup
+
         # the element at position 1 and 2 are the x and y coordinates of the agent
         # There are no obstacles in this simple implementation so let's assume the agent can move freely within the grid world
-        reward = 0
-        done = false # The episode is not done
+        reward = -1
+        done = false
         case action
         when :up
           agent_position[1] -= 1 unless agent_position[1] == 0.0
@@ -84,27 +89,27 @@ module Reinforce
         when :right
           agent_position[2] += 1 unless agent_position[2] == (@size - 1)
         else
-          #raise "Invalid action: #{action}"
-          # the agent selected a wrong action so we give a negative reward
-          reward = -1E3 # a sort of action mapping here
+          reward = -1E8 # a sort of action mapping here
         end
+        
         # check if the agent reached a terminal state (the goal position)
         # the agent should maximize the number of objects picked up but also reach the goal
         goal_position = @state.select { |item| item[0] == 1 }
         goal_position = goal_position[0] if goal_position != []
-        #warn "goal_position: #{goal_position} agent_position: #{agent_position}"
+
         if agent_position[1] == goal_position[1] && agent_position[2] == goal_position[2]
           reward += 10
           done = true
+          puts "Goal reached! in #{@dstep} steps"
         end
-        # calculate the distance between the agent and the goal 
-        distance_to_goal = (agent_position[1] - goal_position[1]).abs + (agent_position[2] - goal_position[2]).abs
-        # maximum distance 
-        max_distance = 2 * @size
-        reward += -(distance_to_goal / max_distance.to_f) if reward < 1
-        #warn "Returning state: #{@state}, reward: #{reward}, done: #{done}"
-        return [state, reward, done]
+
+        if done != true && @dstep >= @max_steps
+          done = true
+        end 
+        [@state, reward, done]
       end
+
+
    # This method is used to render the environment
     def render(output_stream)
       @size.times do |i|

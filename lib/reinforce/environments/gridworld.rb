@@ -62,7 +62,7 @@ module Reinforce
         elsif next_state == @state
           reward = -1
         elsif next_state == @goal
-          #warn "Goal reached!"
+          warn "Goal reached!"
           done = true
           reward = 1
         end

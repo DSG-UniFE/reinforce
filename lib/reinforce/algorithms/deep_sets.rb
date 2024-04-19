@@ -20,7 +20,7 @@ module Reinforce
       # x: (batch_:size, n_elements, in_channels)
       # return: (batch_size, n_elements)
       xm,_ = Torch.max(x, dim: 1, keepdim: true)
-      @lambda.call(x) - @gamma.call(xm) 
+      @lambda.call(x) - @gamma.call(xm)
     end
   end
 
@@ -41,9 +41,7 @@ module Reinforce
       # x: (batch_size, n_elements, in_channels)
       # return: (batch_size, 1)
       #f = Torch.squeeze(@net.call(x), dim: -1)
-      #warn "x in forward: #{x.shape}"
-      x = @net.call(x)
-      Torch.squeeze(x, dim: -1)
+      Torch.squeeze(@net.call(x), dim: -1)
     end
   end
 
@@ -69,7 +67,7 @@ module Reinforce
       # x: (batch_size, n_elements, in_channels)
       # return: (batch_size, n_elements)
       x = Torch.mean(@psi.call(x), dim: 1)
-      return Torch.squeeze(@rho.call(x), dim: -1)
+      Torch.squeeze(@rho.call(x), dim: -1)
     end
 
   end 

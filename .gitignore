@@ -4,6 +4,7 @@
 /gems.locked
 /.covered.db
 /external
+*.logs
 *.pth
 *.txt
 *.results

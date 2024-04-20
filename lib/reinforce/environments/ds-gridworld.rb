@@ -30,7 +30,7 @@ module Reinforce
         @obstacles_num = obstacles
         @obstacles = nil
         @state = nil
-        @max_steps = 250
+        @max_steps = 512
         @dstep = 0
         reset
       end
@@ -59,8 +59,41 @@ module Reinforce
 
       def action_masks
         masks = Array.new(ACTIONS.size, 1)
+        to_fill = state_size[0] - masks.size
+        to_fill.times { masks << 0 } 
+        # Check if an action is possible in a given state
+        agent_position = @state.select { |item| item[0] == 0 }
+        agent_position = agent_position[0] if agent_position != []
+        if agent_position[1] == 0
+          masks[0] = 0
+        end
+        if agent_position[1] == (@size - 1)
+          masks[1] = 0
+        end
+        if agent_position[2] == 0
+          masks[2] = 0
+        end
+        if agent_position[2] == (@size - 1)
+          masks[3] = 0
+        end
+        # Check also if is about to reach an obstacle position 
+        # if there obstacles to the right, left, up or down
+        @obstacles.each do |obj|
+          if agent_position[1] == obj[0] && agent_position[2] == obj[1] - 1
+            masks[3] = 0
+          end
+          if agent_position[1] == obj[0] && agent_position[2] == obj[1] + 1
+            masks[2] = 0
+          end
+          if agent_position[1] == obj[0] - 1 && agent_position[2] == obj[1]
+            masks[1] = 0
+          end
+          if agent_position[1] == obj[0] + 1 && agent_position[2] == obj[1]
+            masks[0] = 0
+          end
+        end
         masks
-      end
+      end 
 
       def state_size
         [@state.size, @state[0].size]
@@ -89,24 +122,34 @@ module Reinforce
         when :right
           agent_position[2] += 1 unless agent_position[2] == (@size - 1)
         else
-          reward = -1E8 # a sort of action mapping here
+          #reward = -1E8 # a sort of action mapping here
         end
         
         # check if the agent reached a terminal state (the goal position)
         # the agent should maximize the number of objects picked up but also reach the goal
         goal_position = @state.select { |item| item[0] == 1 }
         goal_position = goal_position[0] if goal_position != []
+        # if agent move to an obstacle position, move back the agent and assign a penalty
+        
+        @obstacles.each do |obj|
+          if agent_position[1] == obj[0] && agent_position[2] == obj[1]
+            agent_position[1] = current_position[1]
+            agent_position[2] = current_position[2]
+            reward = -10
+          end
+        end
 
         if agent_position[1] == goal_position[1] && agent_position[2] == goal_position[2]
-          reward += 10
+          reward = 10
           done = true
           puts "Goal reached! in #{@dstep} steps"
         end
 
+
         if done != true && @dstep >= @max_steps
           done = true
         end 
-        [@state, reward, done]
+        [@state.clone, reward, done]
       end
 
 

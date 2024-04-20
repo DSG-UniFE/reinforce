@@ -10,7 +10,7 @@ require 'forwardable'
 # Create the environment
 size = 10
 start = [0, 0]
-objects = 5
+objects = 2
 environment = Reinforce::Environments::Pacman.new(size, start, objects)
 
 state = environment.reset
@@ -32,31 +32,26 @@ agent = Reinforce::Algorithms::PPODS.new(environment, learning_rate)
 # Train the agent
 agent.load('ds_pacman_ppo.pth')
 
-File.write('ds_pacman_ppo_logs.conf', agent.logs.to_s)
-
 # put in eval mode
 agent.eval
 
 win = 0
-10.times do
+10_000.times do
   state = environment.reset
+  mask = environment.action_masks
   moves = 0
   max_actions_per_episode.times do
     moves += 1
-    action = agent.predict(state)
+    action = agent.predict(state, mask)
     #warn "action: #{action} #{action.to_i}"
     state, _, done = environment.step(action.to_i)
+    mask = environment.action_masks
     if done[0] == true
-      warn 'Goal reached! In moves: ' + moves.to_s + 'moves'
-      environment.render($stdout)
+      #warn 'Goal reached! In moves: ' + moves.to_s + 'moves'
+      #environment.render($stdout)
       win += 1
       break
     end 
-    if moves == max_actions_per_episode
-      #warn 'Max moves reached'
-      #environment.render($stdout)
-      break
-    end
   end
 end
 

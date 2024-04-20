@@ -16,9 +16,9 @@ module Reinforce
         def initialize(state_size, num_actions, policy_model=nil, value_model=nil)
           super()
           if policy_model.nil? || value_model.nil?
-            @policy_model = EquivariantDeepSet.new(3)
+            @policy_model = EquivariantDeepSet.new(state_size[1])
             @policy_model.train
-            @value_model = InvariantDeepSet.new(3)
+            @value_model = InvariantDeepSet.new(state_size[1])
             @value_model.train
           else
             @policy_model = policy_model
@@ -31,14 +31,18 @@ module Reinforce
           @value_model.call(x)
         end 
 
-        def get_action(x, mask=nil)
+        def get_action(x, mask=nil, deterministic=false)
           logits = @policy_model.call(x)
           unless mask.nil?
             huge_neg = Torch.tensor(-1e8)
             logits = Torch.where(mask, logits, huge_neg)
           end 
           pd = CategoricalDistribution.new(logits: logits)
-          action = pd.sample
+          if deterministic
+            pd.mode
+          else
+            pd.sample
+          end
         end 
 
         def get_action_and_value(x, action=nil, mask=nil)
@@ -46,6 +50,7 @@ module Reinforce
           unless mask.nil?
             huge_neg = Torch.tensor(-1e8) 
             logits = Torch.where(mask, logits, huge_neg)
+            #warn "logits: #{logits}"
           end
           pd = CategoricalDistribution.new(logits: logits)
           action = pd.sample if action.nil?
@@ -94,11 +99,12 @@ module Reinforce
             @agent.eval
         end
 
-        def predict(state)
-          argument = Torch.tensor(state, dtype: :float32) unless state.is_a?(Torch::Tensor)
-          logits = Torch.no_grad { @agent.policy_model.call(argument) }
-          pd = CategoricalDistribution.new(logits: logits)
-          pd.sample
+        def predict(state, mask=nil)
+          Torch.no_grad do
+            argument = Torch.tensor(state, dtype: :float32) unless state.is_a?(Torch::Tensor)
+            mask = Torch.tensor(mask, dtype: :bool) unless mask.nil?
+            @agent.get_action(argument, mask, false)
+          end
         end
 
         def clip_grad_norm_(parameters, max_norm, norm_type: 2)
@@ -146,7 +152,8 @@ module Reinforce
           rewards = Torch.zeros(num_steps, 1)
           dones = Torch.zeros(num_steps, 1)
           values = Torch.zeros(num_steps, 1)
-          masks = Torch.zeros(num_steps, 1, @environment.actions.size, dtype: :bool)
+          warn "#{@environment.state_size[0]}"
+          masks = Torch.zeros(num_steps, 1, @environment.action_masks.length, dtype: :bool)
 
           global_step = 0
           next_obs = @environment.reset
@@ -159,9 +166,9 @@ module Reinforce
             progress = episode_number.to_f / num_episodes * 100
             print "\rTraining: #{progress.round(2)}%" if episode_number % 10 == 0
             # Anneal the learning rate
-            #fract = 1.0 - (episode_number - 1) / num_episodes
-            #lrnow = @learning_rate * fract
-            #@optimizer.param_groups[0][:lr] = lrnow
+            fract = 1.0 - (episode_number - 1) / num_episodes
+            lrnow = @learning_rate * fract
+            @optimizer.param_groups[0][:lr] = lrnow
 
             batch_size.times do |step|
 
@@ -189,13 +196,15 @@ module Reinforce
               if next_done == [true]
                 @logs[:episode_reward] << episode_reward
                 @logs[:episode_length] << episode_lenth
-                warn "Episode: #{episode_number} Reward: #{episode_reward} Length: #{episode_lenth}"
+                #warn "Episode: #{episode_number} Reward: #{episode_reward} Length: #{episode_lenth}"
                 episode_lenth = 0
                 episode_reward = 0
                 next_obs = @environment.reset
+                next_mask = Torch.tensor(@environment.action_masks)
               end
               next_obs = Torch.tensor(next_obs)
               next_done = Torch.tensor(next_done)
+              next_mask = Torch.tensor(@environment.action_masks)
             end
 
 
@@ -231,7 +240,7 @@ module Reinforce
             b_obs = obs.reshape([-1,] + @environment.state_size)
             b_logprobs = logprobs.reshape(-1)
             b_actions = actions.reshape(-1, 1)
-            b_masks = masks.reshape(-1, @environment.actions.size)
+            b_masks = masks.reshape(-1, @environment.action_masks.length)
             b_returns = returns.reshape(-1)
             b_advantages = advantages.reshape(-1)
             b_values = values.reshape(-1)
@@ -274,7 +283,6 @@ module Reinforce
                 #warn "entropy_loss: #{entropy_loss}"
                 loss = pg_loss - 0.01 * entropy_loss + value_loss * 0.5
                 @logs[:loss] << loss.item
-                #warn "loss: #{loss}"
                 #warn "loss: #{loss} entropy_loss: #{entropy_loss} value_loss: #{value_loss} pg_loss: #{pg_loss}"
 
                 # Here another type of loss without entropy

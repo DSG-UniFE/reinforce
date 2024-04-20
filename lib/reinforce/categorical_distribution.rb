@@ -82,6 +82,11 @@ class CategoricalDistribution
     x.argmax
   end
 
+  def mode
+    # return the index of the action with the highest probability
+    @logits.argmax
+  end
+
   def greedy
     # return the index of the action with the highest logit (equivalent to the
     # action with the highest probability)

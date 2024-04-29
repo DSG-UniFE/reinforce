@@ -13,7 +13,8 @@ size = 10
 start = [0, 0]
 goal = [size - 1, size - 1]
 
-obstacles = 2
+obstacles = 4
+
 environment = Reinforce::Environments::DSGridWorld.new(size, start, goal, obstacles)
 
 state = environment.reset
@@ -21,8 +22,8 @@ warn "Example State: #{state}"
 warn "State Size: #{environment.state_size} #{environment.state_size[1]}"
 
 # Parameters
-learning_rate = 2.5e-4
-episodes = 1000
+learning_rate = 1e-5
+episodes = 225
 batch_size = 512
 
 # Create the dummy representation for the environment
@@ -35,15 +36,19 @@ agent = Reinforce::Algorithms::PPODS.new(environment, learning_rate)
 # Train the agent
 agent.train(episodes, batch_size)
 agent.save('ds_gridworld_ppo.pth')
-=begin
-puts 'Learned Policy'
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: "Loss", width: 100, height: 20)
-plot.render
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: "Rewards", width: 100, height: 20)
-plot.render
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
-plot.render
-=end
+
+begin
+  puts 'Learned Policy'
+  plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: "Loss", width: 100, height: 20)
+  plot.render
+  plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: "Rewards", width: 100, height: 20)
+  plot.render
+  plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
+  plot.render
+rescue StandardError => e
+  warn "Error: #{e}"
+end
+
 File.write('ds_gridworld_ppo_logs.logs', agent.logs.to_s)
 # put in eval mode
 agent.eval

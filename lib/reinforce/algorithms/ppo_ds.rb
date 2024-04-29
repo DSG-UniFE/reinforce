@@ -32,11 +32,13 @@ module Reinforce
         end 
 
         def get_action(x, mask=nil, deterministic=false)
+          #warn "x: #{x}"
           logits = @policy_model.call(x)
           unless mask.nil?
             huge_neg = Torch.tensor(-1e8)
             logits = Torch.where(mask, logits, huge_neg)
-          end 
+            #warn "logits: #{logits}"
+          end
           pd = CategoricalDistribution.new(logits: logits)
           if deterministic
             pd.mode
@@ -91,19 +93,20 @@ module Reinforce
 
         def load(filename)
           @agent.load_state_dict(Torch.load(filename))
+          #warn "Parameters loaded from #{filename}"
+          #warn "#{@agent.parameters}"
           @agent.policy_model.eval
-          @agent.value_model.eval
         end
 
         def eval()
             @agent.eval
         end
 
-        def predict(state, mask=nil)
+        def predict(state, mask=nil, deterministic=false)
           Torch.no_grad do
             argument = Torch.tensor(state, dtype: :float32) unless state.is_a?(Torch::Tensor)
             mask = Torch.tensor(mask, dtype: :bool) unless mask.nil?
-            @agent.get_action(argument, mask, false)
+            @agent.get_action(argument, mask, deterministic)
           end
         end
 
@@ -283,6 +286,7 @@ module Reinforce
                 #warn "entropy_loss: #{entropy_loss}"
                 loss = pg_loss - 0.01 * entropy_loss + value_loss * 0.5
                 @logs[:loss] << loss.item
+                #warn "loss: #{loss.item}"
                 #warn "loss: #{loss} entropy_loss: #{entropy_loss} value_loss: #{value_loss} pg_loss: #{pg_loss}"
 
                 # Here another type of loss without entropy

@@ -21,8 +21,7 @@ warn "State Size: #{environment.state_size} #{state[0].length}"
 
 # Parameters
 learning_rate = 0.001
-
-max_actions_per_episode = 250
+max_actions_per_episode = 512
 
 # Create the dummy representation for the environment
 
@@ -45,7 +44,8 @@ win = 0
   moves = 0
   max_actions_per_episode.times do
     moves += 1
-    action = agent.predict(state, mask)
+    action = agent.predict(state, mask, false)
+    #warn "Predicted action #{action}"
     state, _, done = environment.step(action.to_i)
     mask = environment.action_masks
     if done.first == true and moves < max_actions_per_episode

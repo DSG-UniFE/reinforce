@@ -62,7 +62,8 @@ module Reinforce
 
           attr_reader :logs
           attr_accessor :agent,:optimizer
-          def initialize(environment, learning_rate, policy=nil, value=nil, clip_param = 0.2, ppo_epochs = 10, minibatch_size = 32, discount_factor = 0.99)
+          def initialize(environment, learning_rate, policy=nil, value=nil, 
+            clip_param = 0.2, ppo_epochs = 4, minibatch_size = 128, discount_factor = 0.99)
             @environment = environment
             @agent = Agent.new(environment.state_size, environment.actions.size, policy, value)
             @gaelam = 0.97

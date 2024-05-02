@@ -16,24 +16,25 @@ obstacles = 5
 environment = Reinforce::Environments::GridWorld.new(size, start, goal, obstacles)
 
 # Parameters
-learning_rate = 0.001
-episodes = 3_000
+learning_rate = 1e-4
+episodes = 1_500
 max_actions_per_episode = 150
 
 # Create the agent
 # Define a policy model for the agent 
-policy = Torch::NN::Sequential.new(
-  Torch::NN::Linear.new(2, 64),
-  Torch::NN::Tanh.new,
-  Torch::NN::Linear.new(64, 64),
-  Torch::NN::Tanh.new,
-  Torch::NN::Linear.new(64, environment.actions.size))
-value = Torch::NN::Sequential.new(
-  Torch::NN::Linear.new(2, 64),
-  Torch::NN::Tanh.new,
-  Torch::NN::Linear.new(64, 1))
+#policy = Torch::NN::Sequential.new(
+#  Torch::NN::Linear.new(2, 64),
+#  Torch::NN::Tanh.new,
+#  Torch::NN::Linear.new(64, 64),
+#  Torch::NN::Tanh.new,
+#  Torch::NN::Linear.new(64, environment.actions.size))
+#value = Torch::NN::Sequential.new(
+#  Torch::NN::Linear.new(2, 64),
+#  Torch::NN::Tanh.new,
+#  Torch::NN::Linear.new(64, 1))
 
-agent = Reinforce::Algorithms::PPO.new(environment, learning_rate, policy, value)
+#agent = Reinforce::Algorithms::PPO.new(environment, learning_rate, policy, value)
+agent = Reinforce::Algorithms::PPO.new(environment, learning_rate)
 
 # Train the agent
 agent.train(episodes, max_actions_per_episode)

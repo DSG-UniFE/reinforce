@@ -35,14 +35,13 @@ testing_episodes = 100
 accomplished = 0
 testing_episodes.times do
   state = environment.reset
-  max_actions_per_episode.times do
+  max_actions_per_episode.times do |s|
     action = agent.predict(state) 
     warn "State: #{state} action: #{action}"
     state, _, done = environment.step(action.to_i)
     #environment.render($stdout)
-    if done
+    if done && s < max_actions_per_episode - 1
       accomplished += 1
-      warn 'Goal reached!'
       break
     end 
   end

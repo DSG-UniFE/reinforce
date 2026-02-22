@@ -18,11 +18,11 @@ describe Reinforce::Algorithms::Reinforce do
   end
 
   it 'can be saved' do
-    expect(agent).to respond_to(:save)
+    expect(agent.respond_to?(:save)).to be == true
   end
   
   it 'can be loaded' do
-    expect(agent).to respond_to(:load)
+    expect(agent.respond_to?(:load)).to be == true
   end
 
 end

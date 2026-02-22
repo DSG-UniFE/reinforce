@@ -9,13 +9,12 @@ source 'https://rubygems.org'
 gemspec
 
 # gem 'rake', '~> 13.0'
-gem 'bake', '~> 0.18.2'
-gem 'bake-gem', '~> 0.4.0'
-gem 'bake-modernize', '~> 0.17.8'
-gem 'unicode_plot'
-gem 'standard', '~> 1.3'
+gem 'bake', '~> 0.24.1'
+gem 'bake-gem', '~> 0.12.1'
+gem 'bake-modernize', '~> 0.50.0'
+gem 'standard', '~> 1.15.0'
 
 group :test do
-  gem 'covered', '~> 0.21.0'
-  gem 'sus', '~> 0.21.1'
+  gem 'covered', '~> 0.28.1'
+  gem 'sus', '~> 0.35.2'
 end

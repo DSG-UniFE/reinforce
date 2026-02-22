@@ -132,20 +132,59 @@ module Reinforce
             total_norm
           end          
 
+          def build_rollout_buffers(num_steps)
+            {
+              obs: Torch.zeros(num_steps, @environment.state_size),
+              actions: Torch.zeros(num_steps),
+              logprobs: Torch.zeros(num_steps, dtype: :float32),
+              rewards: Torch.zeros(num_steps),
+              dones: Torch.zeros(num_steps, dtype: :float32),
+              values: Torch.zeros(num_steps)
+            }
+          end
+
+          def compute_gae(rewards, values, dones, next_value, next_done)
+            rewards_a = rewards.to_a.map(&:to_f)
+            values_a = values.to_a.map(&:to_f)
+            dones_a = dones.to_a.map(&:to_f)
+            next_value_f = next_value.is_a?(Torch::Tensor) ? next_value.item.to_f : next_value.to_f
+
+            advantages = Array.new(rewards_a.size, 0.0)
+            lastgaelam = 0.0
+
+            (rewards_a.size - 1).downto(0).each do |t|
+              if t == rewards_a.size - 1
+                next_nonterminal = next_done ? 0.0 : 1.0
+                next_values = next_value_f
+              else
+                next_nonterminal = 1.0 - dones_a[t + 1]
+                next_values = values_a[t + 1]
+              end
+
+              delta = rewards_a[t] + @discount_factor * next_values * next_nonterminal - values_a[t]
+              lastgaelam = delta + @discount_factor * @gaelam * next_nonterminal * lastgaelam
+              advantages[t] = lastgaelam
+            end
+
+            returns = advantages.each_with_index.map { |adv, i| adv + values_a[i] }
+            [Torch.tensor(advantages, dtype: :float32), Torch.tensor(returns, dtype: :float32)]
+          end
+
           def train(num_episodes, batch_size)
             # Initialize the experience buffer, tensors that will store the data
             num_steps = batch_size
-            obs = Torch.zeros(num_steps + @environment.state_size, @environment.state_size)
-            actions = Torch.zeros(num_steps + @environment.actions.size)
-            logprobs = Torch.zeros(num_steps, dtype: :float32)
-            rewards = Torch.zeros(num_steps)
-            dones = Torch.zeros(num_steps)
-            values = Torch.zeros(num_steps)
+            buffers = build_rollout_buffers(num_steps)
+            obs = buffers[:obs]
+            actions = buffers[:actions]
+            logprobs = buffers[:logprobs]
+            rewards = buffers[:rewards]
+            dones = buffers[:dones]
+            values = buffers[:values]
 
             global_step = 0
             next_obs = @environment.reset
             next_obs = Torch.tensor(next_obs.map!(&:to_f))
-            next_done = Torch.zeros(1) # 1 is th number of environments
+            next_done = false
             episode_lenth = 0
             # Loop over the episodes
 
@@ -162,7 +201,7 @@ module Reinforce
 
                     global_step += 1
                     obs[step] = next_obs
-                    dones[step] = next_done
+                    dones[step] = next_done ? 1.0 : 0.0
 
                     action, prob, value = nil
 
@@ -188,7 +227,6 @@ module Reinforce
                       next_obs.map!(&:to_f)
                     end
                     next_obs = Torch.tensor(next_obs)
-                    next_done = Torch.tensor(next_done)
                     # TODO log additional information here, e.g. rewards, etc.
                     # everything we would to log somewhere 
                   end
@@ -199,23 +237,8 @@ module Reinforce
 
                   # Calculate the advantages and returns
                   Torch.no_grad do
-                    next_value = @agent.get_value(next_obs).reshape(1, -1)
-                    advantages = Torch.zeros_like(rewards)
-                    lastgaelam = 0
-                    next_done_f = next_done ? 1.0 : -1.0
-
-                    (num_steps - 1).downto(0).each do |t|
-                      if t == num_steps - 1
-                        nextnonterminal = 1.0 - next_done_f
-                        nextvalues = next_value
-                      else
-                        nextnonterminal = 1 - (dones[t + 1] ? 1.0 : 0.0)
-                        nextvalues = values[t + 1]
-                      end
-                      delta = rewards[t] + @discount_factor * nextvalues * nextnonterminal - values[t]
-                      advantages[t] = lastgaelam = delta + @discount_factor * @gaelam * nextnonterminal * lastgaelam
-                    end
-                    returns = advantages + values
+                    next_value = @agent.get_value(next_obs).reshape(-1)[0]
+                    advantages, returns = compute_gae(rewards, values, dones, next_value, next_done)
                   end
 
                   b_obs = obs.reshape(-1, @environment.state_size)

@@ -81,7 +81,7 @@ module Reinforce
             episode_length += 1
             episode_reward += reward
 
-            next_action = choose_action(state, epsilon)
+            next_action = choose_action(next_state, epsilon)
             # Update the agent
             @experience.update(state.dup, action, next_state.dup, next_action, reward, done)
             

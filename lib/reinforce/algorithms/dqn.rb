@@ -114,17 +114,14 @@ module Reinforce
               experience = @prioritized_experience_replay.sample(minibatch_size)
               target = nil
               Torch.no_grad do
-                target_max = @q_function_model_target.architecture.call(Torch.tensor(experience[:next_state], dtype: :float32)).max#.max(dim: 1)
-                t_rewards = Torch.tensor(experience[:reward])
-                dones = experience[:done].map { |d| d ? 0 : 1 }
-                target = t_rewards + @discount_factor * target_max * (1- Torch.tensor(dones))
+                next_q_values = @q_function_model_target.architecture.call(
+                  Torch.tensor(experience[:next_state], dtype: :float32)
+                )
+                target = compute_td_targets(next_q_values, experience[:reward], experience[:done])
               end
               t_actions = Torch.tensor(experience[:action])
               old_val = @q_function_model.forward(experience[:state])
-              told_val = Torch.zeros_like(t_actions, dtype: :float32)
-              old_val.zip(t_actions).each_with_index do |(val, action), i|
-                told_val[i] = val[action]
-              end
+              told_val = q_values_for_actions(old_val, t_actions)
               criterion = Torch::NN::MSELoss.new
               loss = criterion.call(told_val, target)
               @logs[:loss] << loss.item
@@ -172,6 +169,18 @@ module Reinforce
         # load the model if a file already exists
       def load(path)
         @q_function_model.load(path)
+      end
+
+      def compute_td_targets(next_q_values, rewards, dones)
+        max_next_q_values = Torch.tensor(next_q_values.to_a.map { |row| row.max }, dtype: :float32)
+        rewards_t = Torch.tensor(rewards, dtype: :float32)
+        dones_t = Torch.tensor(dones.map { |done| done ? 1.0 : 0.0 }, dtype: :float32)
+        rewards_t + @discount_factor * max_next_q_values * (1.0 - dones_t)
+      end
+
+      def q_values_for_actions(q_values, actions)
+        indices = actions.long.reshape(-1, 1)
+        q_values.gather(1, indices).reshape(-1)
       end
 
     end

@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 4.0.6
+          bundler-cache: true
+      - run: bundle exec sus
+      - run: bundle exec gem build reinforce.gemspec --output reinforce.gem
+      - run: |
+          gem unpack --target "$RUNNER_TEMP/reinforce-gem" reinforce.gem
+          gem_dir="$(find "$RUNNER_TEMP/reinforce-gem" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          bundle exec ruby -I"${gem_dir}/lib" -e 'require "reinforce"'

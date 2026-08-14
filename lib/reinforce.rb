@@ -5,6 +5,8 @@
 
 require_relative "reinforce/version"
 require_relative "reinforce/experience"
+require_relative "reinforce/offline_dataset"
+require_relative "reinforce/offline/evaluation"
 require_relative "reinforce/categorical_distribution"
 require_relative "reinforce/prioritized_experience_replay"
 require_relative "reinforce/environments/1d_walk"
@@ -32,6 +34,13 @@ begin
   require_relative "reinforce/algorithms/dqn"
   require_relative "reinforce/algorithms/reinforce"
   require_relative "reinforce/algorithms/ppo"
+  require_relative "reinforce/algorithms/sac"
+  require_relative "reinforce/algorithms/behavior_cloning"
+  require_relative "reinforce/algorithms/conservative_q_learning"
+  require_relative "reinforce/models/diffusion_policy"
+  require_relative "reinforce/models/diffusion_score_model"
+  require_relative "reinforce/offline/intrinsic_rewards/score_bonus"
+  require_relative "reinforce/algorithms/exdm"
 rescue LoadError => error
   raise unless error.path == "torch"
 end

@@ -1,7 +1,6 @@
 /.bundle/
 /.vscode/
 /pkg/
-/gems.locked
 /.covered.db
 /external
 *.pth

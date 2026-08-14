@@ -4,20 +4,54 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
 
 jobs:
-  test:
-    runs-on: macos-14
+  test-linux:
+    name: Test (Ubuntu CPU)
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4
+      - name: Install LibTorch
+        env:
+          LIBTORCH_VERSION: "2.13.0"
+        run: |
+          curl --fail --location --retry 3 \
+            "https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-${LIBTORCH_VERSION}%2Bcpu.zip" \
+            --output "$RUNNER_TEMP/libtorch.zip"
+          unzip -q "$RUNNER_TEMP/libtorch.zip" -d "$RUNNER_TEMP"
+          echo "LIBTORCH_DIR=$RUNNER_TEMP/libtorch" >> "$GITHUB_ENV"
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: 4.0.6
-          bundler-cache: true
+          bundler-cache: false
+      - name: Configure Torch.rb
+        run: bundle config set build.torch-rb --with-torch-dir="$LIBTORCH_DIR"
+      - run: bundle install --jobs 3 --retry 3
       - run: bundle exec sus
       - run: bundle exec gem build reinforce.gemspec --output reinforce.gem
       - run: |
           gem unpack --target "$RUNNER_TEMP/reinforce-gem" reinforce.gem
           gem_dir="$(find "$RUNNER_TEMP/reinforce-gem" -mindepth 1 -maxdepth 1 -type d -print -quit)"
           bundle exec ruby -I"${gem_dir}/lib" -e 'require "reinforce"'
+
+  test-macos:
+    name: Test (macOS compatibility)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LibTorch
+        run: brew install pytorch
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 4.0.6
+          bundler-cache: false
+      - name: Configure Torch.rb
+        run: bundle config set build.torch-rb --with-torch-dir="$(brew --prefix)"
+      - run: bundle install --jobs 3 --retry 3
+      - run: bundle exec sus

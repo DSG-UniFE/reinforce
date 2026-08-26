@@ -20,7 +20,7 @@ jobs:
           LIBTORCH_VERSION: "2.13.0"
         run: |
           curl --fail --location --retry 3 \
-            "https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-${LIBTORCH_VERSION}%2Bcpu.zip" \
+            "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-${LIBTORCH_VERSION}%2Bcpu.zip" \
             --output "$RUNNER_TEMP/libtorch.zip"
           unzip -q "$RUNNER_TEMP/libtorch.zip" -d "$RUNNER_TEMP"
           echo "LIBTORCH_DIR=$RUNNER_TEMP/libtorch" >> "$GITHUB_ENV"

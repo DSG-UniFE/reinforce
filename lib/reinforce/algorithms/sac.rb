@@ -7,6 +7,8 @@ module Reinforce
   module Algorithms
     # Soft Actor-Critic for discrete action spaces.
     class SAC
+      include ::Reinforce::Agent
+
       attr_reader :logs, :policy_model, :q1_model, :q2_model, :q1_target_model, :q2_target_model, :actions, :batch_size
 
       def initialize(environment, policy_model:, q1_model:, q2_model:, q1_target_model:, q2_target_model:,

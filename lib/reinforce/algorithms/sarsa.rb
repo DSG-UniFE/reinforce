@@ -12,7 +12,8 @@ module Reinforce
     # This class implements a Reinforcement Learning agent that uses the
     # n-step SARSA algorithm with an epsilon greedy policy.
     class SARSA
-      
+      include ::Reinforce::Agent
+
       attr_reader :logs
 
       def initialize(environment, q_function_model, epsilon = 0.01)

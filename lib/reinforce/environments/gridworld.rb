@@ -6,6 +6,8 @@
 module Reinforce
   module Environments
     class GridWorld
+      include ::Reinforce::Environment
+
       ACTIONS = %i[up down left right].freeze
       attr_reader :state
       #srand(0)
@@ -71,7 +73,7 @@ module Reinforce
 
         @state = next_state
 
-        [next_state, reward, done]
+        [next_state, reward, done, {}]
       end
 
       def render(output_stream)

@@ -7,6 +7,8 @@
 module Reinforce
   module Environments
     class Game2048
+      include ::Reinforce::Environment
+
       attr_reader :board,:score
 
       def initialize(board_size = 4)
@@ -93,7 +95,7 @@ module Reinforce
         place_random_tile
         #end
 
-        [@board.flatten.dup, reward, @done]
+        [@board.flatten.dup, reward, @done, {}]
       end
 
       def render(output_stream)

@@ -13,6 +13,8 @@ module Reinforce
     # ExDM augments rewards with diffusion-score intrinsic bonuses and
     # delegates actor/critic optimization to SAC.
     class ExDM
+      include ::Reinforce::Agent
+
       attr_reader :policy_model, :q_network, :q_target_network, :score_model, :logs, :sac
 
       def initialize(dataset=nil, action_space: nil, state_size: nil, learning_rate: 3e-4, discount_factor: 0.99,

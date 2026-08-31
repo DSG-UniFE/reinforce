@@ -14,6 +14,7 @@ module Reinforce
     # This class implements a Reinforcement Learning agent that uses the
     # Deep Q Network algorithm.
     class DQN
+      include ::Reinforce::Agent
 
       attr_reader :logs
 

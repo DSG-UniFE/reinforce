@@ -7,6 +7,8 @@ module Reinforce
   module Algorithms
     # ANN-based conservative Q-learning (discrete action variant).
     class ConservativeQLearning
+      include ::Reinforce::Agent
+
       attr_reader :q_network, :q_target_network, :actions, :logs
 
       def initialize(dataset, action_space: nil, learning_rate: 1e-3, discount_factor: 0.99, alpha: 0.1,

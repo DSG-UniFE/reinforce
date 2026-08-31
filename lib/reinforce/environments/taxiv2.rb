@@ -2,6 +2,8 @@ module Reinforce
   module Environments
 
     class TaxiV2 
+      include ::Reinforce::Environment
+
       attr_reader :state, :reward, :done
       def initialize
         @action = 0
@@ -77,29 +79,29 @@ module Reinforce
 =end
         @state = [taxi_location.dup, passenger_location.dup, destination.dup].flatten
 
-        [@state, reward, @done]
+        [@state, reward, @done, {}]
       end
  
     # Let's render the environment  on the screen
     # let's draw a grid with the position of the taxi, the passenger and the num_destination
-    def render
-
-      warn "State: #{@state}"
+    def render(output_stream = $stdout)
+      output_stream.puts "State: #{@state}"
       (0...@num_location).each do |j|
+        line = String.new
         (0...@num_location).each do |i|
-          if i == @state[0] && j == @state[1]
-            print @passenger_in_taxi == 1 ? 'C' : 'T'
+          line += if i == @state[0] && j == @state[1]
+            @passenger_in_taxi == 1 ? 'C' : 'T'
           elsif i == @state[2] && j == @state[3] && @passenger_in_taxi == 0
-            print 'P'
+            'P'
           elsif i == @state[4] && j == @state[5]
-            print 'D'
+            'D'
           else
-            print '-'
+            '-'
           end
         end
-        print "\n"
+        output_stream.puts line
       end
-      print "\n"
+      output_stream.puts ''
     end
 
     end

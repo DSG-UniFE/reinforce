@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 require 'reinforce/environments/taxi'
+require_relative '../../support/environment_contract'
 
 describe Reinforce::Environments::Taxi do
+  include_context EnvironmentContract, factory: -> { srand(1234); Reinforce::Environments::Taxi.new }
+
   let(:environment) do
     srand(1234)
     Reinforce::Environments::Taxi.new

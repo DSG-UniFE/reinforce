@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 require 'reinforce/environments/1d_walk'
+require_relative '../../support/environment_contract'
 
 describe Reinforce::Environments::OneDimensionalWalk do
+  include_context EnvironmentContract, factory: -> { srand(1234); Reinforce::Environments::OneDimensionalWalk.new(8) }
+
   let(:environment) do
     srand(1234)
     Reinforce::Environments::OneDimensionalWalk.new(8)

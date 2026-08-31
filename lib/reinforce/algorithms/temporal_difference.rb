@@ -6,6 +6,8 @@ module Reinforce
     # By default it performs Q-learning; set on_policy: true to perform
     # SARSA-style updates using next_action.
     class TemporalDifference
+      include ::Reinforce::Agent
+
       attr_reader :q_table, :learning_rate, :discount_factor, :epsilon
 
       def initialize(environment, learning_rate: 0.1, discount_factor: 0.9, epsilon: 0.1)

@@ -9,6 +9,8 @@ require_relative '../categorical_distribution'
 module Reinforce
   module Algorithms
     class Reinforce
+      include ::Reinforce::Agent
+
       def initialize(num_states, num_actions, discount_factor, model, optimizer)
         @num_states = num_states
         @num_actions = num_actions

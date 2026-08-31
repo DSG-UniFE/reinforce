@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 require 'reinforce/environments/game_2048'
+require_relative '../../support/environment_contract'
 
 describe Reinforce::Environments::Game2048 do
+  include_context EnvironmentContract, factory: -> { srand(1234); Reinforce::Environments::Game2048.new(4) }
+
   let(:environment) do
     srand(1234)
     Reinforce::Environments::Game2048.new(4)

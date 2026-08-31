@@ -7,6 +7,8 @@
 module Reinforce
   module Environments
     class OneDimensionalWalk
+      include ::Reinforce::Environment
+
     ACTIONS = %i[left right].freeze
     attr_reader :state
 
@@ -50,7 +52,7 @@ module Reinforce
         done = true
       end
       @state = next_state
-      [next_state, reward, done]
+      [next_state, reward, done, {}]
     end
 
     def render(output)

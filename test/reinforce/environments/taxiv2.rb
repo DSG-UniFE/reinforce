@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 require 'reinforce/environments/taxiv2'
+require_relative '../../support/environment_contract'
 
 describe Reinforce::Environments::TaxiV2 do
+  include_context EnvironmentContract, factory: -> { Reinforce::Environments::TaxiV2.new }
+
   let(:environment) { Reinforce::Environments::TaxiV2.new }
 
   it 'exposes a stable environment contract' do

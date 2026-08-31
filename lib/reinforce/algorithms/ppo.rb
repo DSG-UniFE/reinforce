@@ -58,6 +58,8 @@ module Reinforce
       end
 
       class PPO
+        include ::Reinforce::Agent
+
         attr_reader :logs
         attr_accessor :agent,:optimizer
 

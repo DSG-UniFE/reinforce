@@ -4,8 +4,11 @@
 # Copyright, 2023, by Mauro Tortonesi.
 
 require 'reinforce/environments/gridworld'
+require_relative '../../support/environment_contract'
 
 describe Reinforce::Environments::GridWorld do
+  include_context EnvironmentContract, factory: -> { Reinforce::Environments::GridWorld.new(5, [0, 0], [4, 4], [[1, 1], [2, 2], [3, 3]]) }
+
   let(:initial_state) do
     [0, 0]
   end

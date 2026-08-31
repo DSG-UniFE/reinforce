@@ -7,6 +7,8 @@ module Reinforce
   module Algorithms
     # ANN-based behavior cloning for discrete action spaces.
     class BehaviorCloning
+      include ::Reinforce::Agent
+
       attr_reader :policy_model, :logs, :actions
 
       def initialize(dataset, action_space: nil, learning_rate: 1e-3, hidden_size: 64, policy_model: nil)

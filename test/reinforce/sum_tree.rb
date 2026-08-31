@@ -14,14 +14,14 @@ describe Reinforce::SumTree do
     tree.update(1, 2.0)
     tree.update(2, 3.0)
 
-    expect(tree.total).to be == 6.0
+    expect(tree.total).to be_within(1e-9).of(6.0)
   end
 
   it "lets a later update to the same leaf replace, not add to, its priority" do
     tree.update(0, 5.0)
     tree.update(0, 1.0)
 
-    expect(tree.total).to be == 1.0
+    expect(tree.total).to be_within(1e-9).of(1.0)
   end
 
   it "finds the leaf whose cumulative range contains a given value" do

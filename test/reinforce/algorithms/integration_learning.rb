@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require 'reinforce/algorithms/dqn'
-require 'reinforce/algorithms/ppo'
-require 'reinforce/q_function_ann'
+require "reinforce/algorithms/dqn"
+require "reinforce/algorithms/ppo"
+require "reinforce/q_function_ann"
 
 class BinaryChoiceEnv
   def state_size
@@ -19,13 +19,13 @@ class BinaryChoiceEnv
 
   def step(action)
     action_index = action.is_a?(Integer) ? action : actions.index(action)
-    reward = action_index == 1 ? 2.0 : 1.0
+    reward = (action_index == 1) ? 2.0 : 1.0
     [[0.0], reward, true]
   end
 end
 
-describe 'integration learning smoke tests' do
-  it 'DQN learns to value the better action on a deterministic one-step task' do
+describe "integration learning smoke tests" do
+  it "DQN learns to value the better action on a deterministic one-step task" do
     srand(1234)
     Torch.manual_seed(1234)
     env = BinaryChoiceEnv.new
@@ -67,7 +67,7 @@ describe 'integration learning smoke tests' do
     expect(after_gap > 0.0).to be == true
   end
 
-  it 'PPO policy shifts toward the better action on a deterministic one-step task' do
+  it "PPO policy shifts toward the better action on a deterministic one-step task" do
     env = BinaryChoiceEnv.new
 
     policy_layer = Torch::NN::Linear.new(1, 2)

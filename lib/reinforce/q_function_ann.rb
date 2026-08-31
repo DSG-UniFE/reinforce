@@ -3,16 +3,17 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi, Filippo Poltronieri
 
-require 'torch'
-require 'forwardable'
-require_relative './categorical_distribution'
-require_relative './networks'
+require "torch"
+require "forwardable"
+require_relative "categorical_distribution"
+require_relative "networks"
 
 module Reinforce
   # input to the network is the current state
   # output of the network is the log probabilities of each action
   class QFunctionANN
     extend Forwardable
+
     def_delegators :@architecture, :apply, :parameters, :state_dict, :load_state_dict
     attr_reader :optimizer, :architecture
 
@@ -30,23 +31,22 @@ module Reinforce
 
     def forward(state)
       argument = if state.is_a?(Torch::Tensor)
-                   state
-                 else
-                   Torch::Tensor.new(state)
-                 end
+        state
+      else
+        Torch::Tensor.new(state)
+      end
       @architecture.forward(argument)
     end
 
     def get_action(state)
       argument = if state.is_a?(Torch::Tensor)
-                    state
-                  else
-                    Torch::Tensor.new(state)
-                  end
+        state
+      else
+        Torch::Tensor.new(state)
+      end
       logits = Torch.no_grad { forward(argument) }
       CategoricalDistribution.new(logits: logits).sample
-    end 
-
+    end
 
     def random_action(_state)
       rand(@num_actions)
@@ -78,10 +78,10 @@ module Reinforce
       # of the other tensors.
       target_actions = Torch.zeros(experience[:action].size)
       next_actions.zip(experience[:reward], experience[:done]).each_with_index do |(next_action, reward, done), i|
-        if done
-          target_actions[i] = reward
+        target_actions[i] = if done
+          reward
         else
-          target_actions[i] = reward + @discount_factor * next_q_values[i][next_action]
+          reward + @discount_factor * next_q_values[i][next_action]
         end
       end
 
@@ -98,7 +98,7 @@ module Reinforce
       criterion = Torch::NN::MSELoss.new
       @optimizer.zero_grad
       # Some debugging. Comment if not needed.
-      #warn "target_actions: #{target_actions.inspect}"
+      # warn "target_actions: #{target_actions.inspect}"
       # Calculate the loss
       loss = criterion.call(taken_q_values, Torch::Tensor.new(target_actions))
       lvalue = loss.item
@@ -127,6 +127,5 @@ module Reinforce
       @architecture.load_state_dict(Torch.load(path))
       @architecture.eval
     end
-
   end
 end

@@ -16,8 +16,8 @@ module Reinforce
             episode_return += discount * transition[:reward].to_f
             behavior_prob = transition.fetch(:behavior_prob, nil)
             target_prob = transition.fetch(:target_prob, nil)
-            raise ArgumentError, 'behavior_prob is required for WIS' if behavior_prob.nil?
-            raise ArgumentError, 'target_prob is required for WIS' if target_prob.nil?
+            raise ArgumentError, "behavior_prob is required for WIS" if behavior_prob.nil?
+            raise ArgumentError, "target_prob is required for WIS" if target_prob.nil?
 
             rho *= target_prob.to_f / [behavior_prob.to_f, epsilon].max
             discount *= discount_factor.to_f

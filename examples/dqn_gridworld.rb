@@ -4,10 +4,10 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi and Filippo Poltronieri.
 
-require 'reinforce'
-require 'torch'
-require 'forwardable'
-require 'unicode_plot'
+require "reinforce"
+require "torch"
+require "forwardable"
+require "unicode_plot"
 
 # Create the environment
 size = 10
@@ -30,35 +30,34 @@ max_actions_per_episode = 150
 # it can be modified by passing the architecture as a parameter.
 
 architectureq = Torch::NN::Sequential.new(
-          Torch::NN::Linear.new(state_size, 128),
-          Torch::NN::ReLU.new,
-          Torch::NN::Linear.new(128, 128),
-          Torch::NN::ReLU.new,
-          Torch::NN::Linear.new(128, num_actions)
-        )
+  Torch::NN::Linear.new(state_size, 128),
+  Torch::NN::ReLU.new,
+  Torch::NN::Linear.new(128, 128),
+  Torch::NN::ReLU.new,
+  Torch::NN::Linear.new(128, num_actions)
+)
 
-q_function_model = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size, 
-                                              learning_rate, discount_factor, architecture: architectureq)
+q_function_model = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size,
+  learning_rate, discount_factor, architecture: architectureq)
 
 architectureqt = Torch::NN::Sequential.new(
-          Torch::NN::Linear.new(state_size, 128),
-          Torch::NN::ReLU.new,
-          Torch::NN::Linear.new(128, 128),
-          Torch::NN::ReLU.new,
-          Torch::NN::Linear.new(128, num_actions)
-        )
+  Torch::NN::Linear.new(state_size, 128),
+  Torch::NN::ReLU.new,
+  Torch::NN::Linear.new(128, 128),
+  Torch::NN::ReLU.new,
+  Torch::NN::Linear.new(128, num_actions)
+)
 
 q_function_model_target = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size,
-                                                      learning_rate, discount_factor , architecture: architectureqt)
-
+  learning_rate, discount_factor, architecture: architectureqt)
 
 # Create the agent
-agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_factor, 
-                                       q_function_model: q_function_model, q_function_model_target: q_function_model_target)
+agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_factor,
+  q_function_model: q_function_model, q_function_model_target: q_function_model_target)
 
 # Train the agent
 agent.train(episodes:, steps_per_episode: max_actions_per_episode)
-agent.save('gridworld_dqn.pth')
+agent.save("gridworld_dqn.pth")
 # Print the learned policy
 
 plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: "Loss", width: 100, height: 20)
@@ -68,14 +67,14 @@ plot.render
 plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
 plot.render
 
-puts 'Learned Policy'
-state = environment.reset 
+puts "Learned Policy"
+state = environment.reset
 max_actions_per_episode.times do |i|
-  action = agent.predict(state) 
+  action = agent.predict(state)
   state, _, done = environment.step(action.to_i)
-  #environment.render($stdout)
+  # environment.render($stdout)
   if done
-    warn 'Goal reached in ' + i.to_s + ' steps.'
+    warn "Goal reached in " + i.to_s + " steps."
     break
-  end 
+  end
 end

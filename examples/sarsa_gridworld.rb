@@ -4,10 +4,10 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi and Filippo Poltronieri.
 
-require 'torch'
-require 'forwardable'
-require 'reinforce'
-require 'unicode_plot'
+require "torch"
+require "forwardable"
+require "reinforce"
+require "unicode_plot"
 
 # Create the environment
 size = 10
@@ -35,29 +35,27 @@ agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon)
 agent.train(episodes:, steps_per_episode: max_actions_per_episode)
 
 # Save the model
-agent.save('gridworld_sarsa.pth')
+agent.save("gridworld_sarsa.pth")
 
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: 'Loss', width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: "Loss", width: 100, height: 20)
 plot.render
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: 'Rewards', width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: "Rewards", width: 100, height: 20)
 plot.render
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: 'Episode Length', width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
 plot.render
 
 # Print the learned policy
-puts 'Learned Policy'
-1.times do
-  puts '----------------'
-  state = environment.reset
-  moves = 0
-  max_actions_per_episode.times do
-    action = agent.predict(state)
-    state, reward, done = environment.step(action.to_i)
-    moves += 1
-    environment.render($stdout)
-    if done
-      puts "Goal reached in #{moves} moves!"
-      break
-    end
+puts "Learned Policy"
+puts "----------------"
+state = environment.reset
+moves = 0
+max_actions_per_episode.times do
+  action = agent.predict(state)
+  state, _, done = environment.step(action.to_i)
+  moves += 1
+  environment.render($stdout)
+  if done
+    puts "Goal reached in #{moves} moves!"
+    break
   end
 end

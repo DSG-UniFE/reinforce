@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-require 'reinforce/offline_dataset'
-require 'reinforce/offline/evaluation'
-require 'reinforce/algorithms/behavior_cloning'
-require 'reinforce/algorithms/conservative_q_learning'
+require "reinforce/offline_dataset"
+require "reinforce/offline/evaluation"
+require "reinforce/algorithms/behavior_cloning"
+require "reinforce/algorithms/conservative_q_learning"
 
-describe 'offline RL pipeline integration' do
-  it 'trains BC and CQL from one dataset and evaluates with FQE' do
+describe "offline RL pipeline integration" do
+  it "trains BC and CQL from one dataset and evaluates with FQE" do
     srand(1234)
     Torch.manual_seed(1234)
     dataset = Reinforce::OfflineDataset.new

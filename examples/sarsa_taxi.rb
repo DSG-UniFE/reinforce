@@ -4,9 +4,9 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
-require 'reinforce'
-require 'torch'
-require 'forwardable'
+require "reinforce"
+require "torch"
+require "forwardable"
 
 # Create the environment
 environment = Reinforce::Environments::Taxi.new
@@ -33,19 +33,19 @@ agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon)
 agent.train(episodes:, steps_per_episode: max_actions_per_episode)
 
 # Save the model
-agent.save('taxi_sarsa.pth')
+agent.save("taxi_sarsa.pth")
 
 # Print the learned policy
 testing_episodes = 10
 testing_episodes.times do
   state = environment.reset
   max_actions_per_episode.times do |i|
-      action = agent.predict(state)
-      state, reward, done = environment.step(action.to_i)
-      #environment.render
-      if done
-        puts "Task Completed! in #{i} steps"
-        break
-      end
+    action = agent.predict(state)
+    state, _, done = environment.step(action.to_i)
+    # environment.render
+    if done
+      puts "Task Completed! in #{i} steps"
+      break
+    end
   end
 end

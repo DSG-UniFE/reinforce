@@ -3,13 +3,13 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
-require 'reinforce/q_function_ann'
+require "reinforce/q_function_ann"
 
 describe Reinforce::QFunctionANN do
   let(:q_function) { Reinforce::QFunctionANN.new(2, 2, 0.01, 0.99) }
   let(:q_target_function) { Reinforce::QFunctionANN.new(2, 2, 0.01, 0.99) }
 
-  it 'can be soft updated from another ANN-based Q function' do
+  it "can be soft updated from another ANN-based Q function" do
     # Regression test for two pre-existing bugs found while extracting
     # Reinforce::Networks.soft_update!:
     #   1. `p.flatten.to_a do |value| ... end` never actually ran the
@@ -33,8 +33,8 @@ describe Reinforce::QFunctionANN do
     end
   end
 
-  describe '#update' do
-    it 'bootstraps from next_action (not the greedy action) when on_policy: true' do
+  describe "#update" do
+    it "bootstraps from next_action (not the greedy action) when on_policy: true" do
       # Regression test for the SARSA-vs-Q-learning bug found while
       # reconciling TemporalDifference and SARSA: #update used to always
       # bootstrap from the greedy action under the current Q-network

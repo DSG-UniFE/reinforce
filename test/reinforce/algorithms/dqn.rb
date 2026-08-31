@@ -16,8 +16,8 @@ describe Reinforce::Algorithms::DQN do
     next_q_values = Torch.tensor([[2.0, 10.0], [3.0, 4.0]], dtype: :float32)
     targets = agent.compute_td_targets(next_q_values, [1.0, 2.0], [true, false]).to_a
 
-    expect(targets[0]).to be == 1.0
-    expect(targets[1]).to be == 6.0
+    expect(targets[0]).to be_within(1e-4).of(1.0)
+    expect(targets[1]).to be_within(1e-4).of(6.0)
   end
 
   it "uses per-row max q-values, not a global max" do

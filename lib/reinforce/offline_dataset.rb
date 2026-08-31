@@ -26,8 +26,8 @@ module Reinforce
     end
 
     def sample(batch_size, random: nil)
-      raise ArgumentError, 'batch_size must be positive' if batch_size <= 0
-      raise ArgumentError, 'cannot sample from an empty dataset' if empty?
+      raise ArgumentError, "batch_size must be positive" if batch_size <= 0
+      raise ArgumentError, "cannot sample from an empty dataset" if empty?
       random ||= Random.new
 
       (0...batch_size).map { @transitions[random.rand(@transitions.size)] }
@@ -50,7 +50,7 @@ module Reinforce
       missing = REQUIRED_FIELDS.reject { |field| transition.key?(field) }
       return if missing.empty?
 
-      raise ArgumentError, "transition is missing required fields: #{missing.join(', ')}"
+      raise ArgumentError, "transition is missing required fields: #{missing.join(", ")}"
     end
 
     def normalize_transition(transition)

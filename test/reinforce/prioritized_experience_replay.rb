@@ -58,7 +58,7 @@ describe Reinforce::PrioritizedExperienceReplay do
 
     weights = per.sample(per_size)[:weights]
 
-    expect(weights.max).to be == 1.0
+    expect(weights.max).to be_within(1e-9).of(1.0)
     weights.each { |weight| expect(weight <= 1.0).to be == true }
   end
 

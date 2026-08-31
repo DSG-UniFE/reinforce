@@ -3,8 +3,8 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
-require 'reinforce/environments/gridworld'
-require_relative '../../support/environment_contract'
+require "reinforce/environments/gridworld"
+require_relative "../../support/environment_contract"
 
 describe Reinforce::Environments::GridWorld do
   include_context EnvironmentContract, factory: -> { Reinforce::Environments::GridWorld.new(5, [0, 0], [4, 4], [[1, 1], [2, 2], [3, 3]]) }
@@ -33,11 +33,11 @@ describe Reinforce::Environments::GridWorld do
     RENDER
   end
 
-  it 'can be instantiated' do
+  it "can be instantiated" do
     expect(gridworld).not.to be_nil
   end
 
-  it 'can be moved and reset' do
+  it "can be moved and reset" do
     gridworld.reset
     next_state, = gridworld.step(:right)
     expect(gridworld.state).to be == next_state
@@ -45,7 +45,7 @@ describe Reinforce::Environments::GridWorld do
     expect(gridworld.state).to be == initial_state
   end
 
-  it 'returns new state, reward, and completion status when moving' do
+  it "returns new state, reward, and completion status when moving" do
     gridworld.reset
     next_state, reward, done = gridworld.step(:right)
     expect(next_state).to be == [0, 1]
@@ -53,7 +53,7 @@ describe Reinforce::Environments::GridWorld do
     expect(done).to be_falsey
   end
 
-  it 'can be rendered' do
+  it "can be rendered" do
     out = StringIO.new
     gridworld.render(out)
     expect(out.string).to be == gridworld_render

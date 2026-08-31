@@ -3,11 +3,12 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
-require 'forwardable'
+require "forwardable"
 
 module Reinforce
   class Experience
     extend Forwardable
+
     def_delegators :@history, :[]
 
     def initialize
@@ -15,14 +16,14 @@ module Reinforce
     end
 
     def reset
-      @history = { state: [], action: [], next_state: [], next_action: [], reward: [], done: [] }
+      @history = {state: [], action: [], next_state: [], next_action: [], reward: [], done: []}
     end
 
     def history_size
       @history[:state].size
     end
 
-    def update(state, action, next_state, next_action=nil, reward, done)
+    def update(state, action, next_state, reward, done, next_action = nil)
       @history[:state] << state
       @history[:action] << action
       @history[:next_state] << next_state
@@ -42,7 +43,6 @@ module Reinforce
         done: indices.map { |i| @history[:done][i] }
       }
     end
-
 
     # def [](symbol)
     #   case symbol

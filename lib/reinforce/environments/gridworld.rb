@@ -10,7 +10,7 @@ module Reinforce
 
       ACTIONS = %i[up down left right].freeze
       attr_reader :state
-      #srand(0)
+      # srand(0)
 
       def initialize(size, start, goal, obstacles_num = 5)
         @size = size
@@ -37,18 +37,18 @@ module Reinforce
 
       def step(action)
         action = ACTIONS[action] if action.is_a?(Integer)
-       #warn "action: #{action}"
+        # warn "action: #{action}"
         next_state = @state.dup
         reward = 0
         done = false
 
         case action
         when :up
-          next_state[0] -= 1 unless (next_state[0]).zero?
+          next_state[0] -= 1 unless next_state[0].zero?
         when :down
           next_state[0] += 1 unless next_state[0] == @size - 1
         when :left
-          next_state[1] -= 1 unless (next_state[1]).zero?
+          next_state[1] -= 1 unless next_state[1].zero?
         when :right
           next_state[1] += 1 unless next_state[1] == @size - 1
         else
@@ -62,7 +62,7 @@ module Reinforce
         elsif next_state == @state
           reward = -1
         elsif next_state == @goal
-          #warn "Goal reached!"
+          # warn "Goal reached!"
           done = true
           reward = 1
         end
@@ -77,25 +77,25 @@ module Reinforce
       end
 
       def render(output_stream)
-        output_stream.puts 'Gridworld:'
+        output_stream.puts "Gridworld:"
         (0...@size).each do |i|
-          line = ''
+          line = ""
           (0...@size).each do |j|
             line += if @start == [i, j]
-                      'S '
-                    elsif @goal == [i, j]
-                      'G '
-                    elsif @obstacles.include?([i, j])
-                      'X '
-                    elsif @state == [i, j]
-                      'A '
-                    else
-                      '_ '
-                    end
+              "S "
+            elsif @goal == [i, j]
+              "G "
+            elsif @obstacles.include?([i, j])
+              "X "
+            elsif @state == [i, j]
+              "A "
+            else
+              "_ "
+            end
           end
           output_stream.puts line
         end
-        output_stream.puts ''
+        output_stream.puts ""
       end
     end
   end

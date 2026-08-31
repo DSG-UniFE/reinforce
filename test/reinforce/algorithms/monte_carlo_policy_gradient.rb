@@ -3,7 +3,7 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
-require 'reinforce/algorithms/monte_carlo_policy_gradient'
+require "reinforce/algorithms/monte_carlo_policy_gradient"
 
 describe Reinforce::Algorithms::MonteCarloPolicyGradient do
   let(:num_states) { 4 }
@@ -13,16 +13,15 @@ describe Reinforce::Algorithms::MonteCarloPolicyGradient do
   let(:optimizer) { Object.new }
   let(:agent) { Reinforce::Algorithms::MonteCarloPolicyGradient.new(num_states, num_actions, discount_factor, model, optimizer) }
 
-  it 'can be instantiated' do
+  it "can be instantiated" do
     expect(agent).not.to be_nil
   end
 
-  it 'can be saved' do
+  it "can be saved" do
     expect(agent.respond_to?(:save)).to be == true
   end
-  
-  it 'can be loaded' do
+
+  it "can be loaded" do
     expect(agent.respond_to?(:load)).to be == true
   end
-
 end

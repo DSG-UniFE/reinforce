@@ -4,9 +4,9 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi and Filippo Poltronieri.
 
-require 'reinforce'
-require 'torch'
-require 'forwardable'
+require "reinforce"
+require "torch"
+require "forwardable"
 
 # Create the environment
 size = 10
@@ -23,28 +23,28 @@ max_actions_per_episode = 150
 agent = Reinforce::Algorithms::PPO.new(environment, learning_rate)
 
 # Load the agent from file
-agent.load('gridworld_ppo.pth')
+agent.load("gridworld_ppo.pth")
 
 # put in eval mode
 agent.eval
 # Print the learned policy
 
-puts 'Exploiting the Learned Policy'
+puts "Exploiting the Learned Policy"
 
 testing_episodes = 100
 accomplished = 0
 testing_episodes.times do
   state = environment.reset
   max_actions_per_episode.times do
-    action = agent.predict(state) 
+    action = agent.predict(state)
     warn "State: #{state} action: #{action}"
     state, _, done = environment.step(action.to_i)
-    #environment.render($stdout)
+    # environment.render($stdout)
     if done
       accomplished += 1
-      warn 'Goal reached!'
+      warn "Goal reached!"
       break
-    end 
+    end
   end
 end
 

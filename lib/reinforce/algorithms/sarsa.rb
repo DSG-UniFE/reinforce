@@ -3,8 +3,8 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
-require_relative '../experience'
-require_relative '../categorical_distribution'
+require_relative "../experience"
+require_relative "../categorical_distribution"
 
 module Reinforce
   module Algorithms
@@ -70,7 +70,7 @@ module Reinforce
         episode_length = 0
         # Training loop
         1.upto(episodes) do |episode_number|
-          #puts "Episode: #{episode_number} epsilon: #{epsilon}"
+          # puts "Episode: #{episode_number} epsilon: #{epsilon}"
           progress = episode_number.to_f / episodes * 100
           print "\rTraining: #{progress.round(2)}%" if episode_number % 10 == 0
           # Reset the environment
@@ -92,8 +92,8 @@ module Reinforce
 
             next_action = choose_action(next_state, epsilon)
             # Update the agent
-            @experience.update(state.dup, action, next_state.dup, next_action, reward, done)
-            
+            @experience.update(state.dup, action, next_state.dup, reward, done, next_action)
+
             state = next_state
             action = next_action
 
@@ -125,7 +125,6 @@ module Reinforce
       def load(path)
         @q_function_model.load(path)
       end
-
     end
   end
 end

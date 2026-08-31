@@ -1,24 +1,27 @@
 # frozen_string_literal: true
 
-require 'reinforce/environments/game_2048'
-require_relative '../../support/environment_contract'
+require "reinforce/environments/game_2048"
+require_relative "../../support/environment_contract"
 
 describe Reinforce::Environments::Game2048 do
-  include_context EnvironmentContract, factory: -> { srand(1234); Reinforce::Environments::Game2048.new(4) }
+  include_context EnvironmentContract, factory: -> {
+    srand(1234)
+    Reinforce::Environments::Game2048.new(4)
+  }
 
   let(:environment) do
     srand(1234)
     Reinforce::Environments::Game2048.new(4)
   end
 
-  it 'exposes a stable environment contract' do
+  it "exposes a stable environment contract" do
     state = environment.reset
     expect(state.size).to be == 16
     expect(environment.state_size).to be == 16
     expect(environment.actions).to be == %i[up down left right]
   end
 
-  it 'returns [state, reward, done] with both symbolic and indexed actions' do
+  it "returns [state, reward, done] with both symbolic and indexed actions" do
     next_state_a, reward_a, done_a = environment.step(:left)
     next_state_b, reward_b, done_b = environment.step(2)
 
@@ -30,10 +33,35 @@ describe Reinforce::Environments::Game2048 do
     expect([true, false].include?(done_b)).to be == true
   end
 
-  it 'tracks score monotonically for positive reward merges' do
+  it "tracks score monotonically for positive reward merges" do
     environment.reset
     initial_score = environment.score
     10.times { environment.step(environment.actions.sample) }
     expect(environment.score >= initial_score).to be == true
+  end
+
+  it "applies both transpose and reverse for a :down move" do
+    # Regression test: :down needs both transformations (transpose to turn
+    # the column into a row, reverse so merging left-to-right acts like
+    # merging bottom-to-top), but the previous implementation used a
+    # case/when with :down listed in two branches -- a case only ever
+    # executes its first matching branch, so :down silently got only the
+    # transpose and merged in the wrong order.
+    #
+    # Column 0, top to bottom: [2, 2, 4, 4]. Real 2048 gravity-down merges
+    # from the bottom first: the two 4s merge into 8 at the very bottom,
+    # then the two 2s merge into 4 above it.
+    environment.reset
+    environment.instance_variable_set(:@board, [
+      [2, 0, 0, 0],
+      [2, 0, 0, 0],
+      [4, 0, 0, 0],
+      [4, 0, 0, 0]
+    ])
+
+    environment.step(:down)
+
+    expect(environment.board[2][0]).to be == 4
+    expect(environment.board[3][0]).to be == 8
   end
 end

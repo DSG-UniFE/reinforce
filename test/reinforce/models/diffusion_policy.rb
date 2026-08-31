@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require 'reinforce/models/diffusion_policy'
+require "reinforce/models/diffusion_policy"
 
 describe Reinforce::Models::DiffusionPolicy do
-  it 'produces logits/probabilities with expected shapes and valid actions' do
+  it "produces logits/probabilities with expected shapes and valid actions" do
     policy = Reinforce::Models::DiffusionPolicy.new(2, %i[left right], hidden_size: 16)
     states = Torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype: :float32)
 

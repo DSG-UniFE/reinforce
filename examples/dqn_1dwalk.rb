@@ -4,25 +4,25 @@
 # Released under the MIT License.
 # Copyright, 2024, by Mauro Tortonesi and Filippo Poltronieri.
 
-require 'reinforce'
-require 'forwardable'
-require 'unicode_plot'
+require "reinforce"
+require "forwardable"
+require "unicode_plot"
 
 environment = Reinforce::Environments::OneDimensionalWalk.new(10)
 
 agent = Reinforce::Algorithms::DQN.new(environment, 0.01, 0.7)
 
-max_actions_per_episode = 50 
+max_actions_per_episode = 50
 
 agent.train(episodes: 1000, steps_per_episode: max_actions_per_episode)
 
-agent.save('1dwalk_dqn.pth')
+agent.save("1dwalk_dqn.pth")
 
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: 'Loss', width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: "Loss", width: 100, height: 20)
 plot.render
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: 'Rewards', width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: "Rewards", width: 100, height: 20)
 plot.render
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: 'Episode Length', width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
 plot.render
 
 testing_episodes = 10
@@ -36,10 +36,8 @@ testing_episodes.times do |i|
     environment.render($stdout)
     moves += 1
     if done
-      warn 'Goal reached!' + "in #{moves} moves."
+      warn "Goal reached!" + "in #{moves} moves."
       break
     end
   end
 end
-
-

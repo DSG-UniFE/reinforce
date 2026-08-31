@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-require 'reinforce'
-require 'reinforce/algorithms/sarsa'
-require 'reinforce/algorithms/ppo'
-require 'reinforce/q_function_ann'
+require "reinforce"
+require "reinforce/algorithms/sarsa"
+require "reinforce/algorithms/ppo"
+require "reinforce/q_function_ann"
 
-describe 'trainer integration on real environments' do
-  it 'trains SARSA for a short run on OneDimensionalWalk and records logs' do
+describe "trainer integration on real environments" do
+  it "trains SARSA for a short run on OneDimensionalWalk and records logs" do
     srand(1234)
     Torch.manual_seed(1234)
     environment = Reinforce::Environments::OneDimensionalWalk.new(8)
@@ -20,7 +20,7 @@ describe 'trainer integration on real environments' do
     expect(agent.logs[:episode_length].size > 0).to be == true
   end
 
-  it 'trains PPO for a short run on GridWorld and records logs' do
+  it "trains PPO for a short run on GridWorld and records logs" do
     srand(1234)
     Torch.manual_seed(1234)
     environment = Reinforce::Environments::GridWorld.new(5, [0, 0], [4, 4], 0)

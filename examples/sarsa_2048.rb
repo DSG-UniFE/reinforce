@@ -4,12 +4,12 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi, Filippo Poltronieri.
 
-require 'reinforce'
-require 'torch'
-require 'forwardable'
+require "reinforce"
+require "torch"
+require "forwardable"
 
 # Create the environment
-environment = Reinforce::Environments::Game2048.new()
+environment = Reinforce::Environments::Game2048.new
 state_size = environment.state_size
 # up, down, right, left (is there really a difference?)
 num_actions = environment.actions.size
@@ -34,7 +34,7 @@ agent.train(episodes:, steps_per_episode: max_actions_per_episode)
 
 puts "Training done! Start the exploitation"
 
-agent.save('2048_network_rev2.pth')
+agent.save("2048_network_rev2.pth")
 
 state_size = environment.state_size
 # up, down, right, left (is there really a difference?)
@@ -42,11 +42,10 @@ num_actions = environment.actions.size
 
 puts "State size #{state_size}, action_size: #{num_actions}"
 
-
 begin
   # Print the learned policy
   #
-  puts 'Learned Policy -- starting to exploit'
+  puts "Learned Policy -- starting to exploit"
   # Reset the environment
 
   # Episode loop -- Exploit the training
@@ -57,18 +56,18 @@ begin
     max_actions_per_episode.times do |i|
       # Choose an action
       action = agent.predict(state)
-      #puts "Action: #{action}" 
+      # puts "Action: #{action}"
       # Take the action and observe the next state and reward
-      next_state, reward, done = environment.step(action)
+      next_state, _, done = environment.step(action)
       # Update the agent
       state = next_state
 
-      #environment.render($stdout)
-      #sleep(0.5)
+      # environment.render($stdout)
+      # sleep(0.5)
       if done
         puts "Episode ended after #{i} steps"
         break
-      end 
+      end
     end
     environment.render($stdout)
     avg_score << environment.score

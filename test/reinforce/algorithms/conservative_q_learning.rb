@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require 'reinforce/offline_dataset'
-require 'reinforce/algorithms/conservative_q_learning'
+require "reinforce/offline_dataset"
+require "reinforce/algorithms/conservative_q_learning"
 
 describe Reinforce::Algorithms::ConservativeQLearning do
-  it 'learns ANN Q-values that prefer the higher reward action' do
+  it "learns ANN Q-values that prefer the higher reward action" do
     srand(1234)
     Torch.manual_seed(1234)
     dataset = Reinforce::OfflineDataset.new

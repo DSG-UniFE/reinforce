@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require 'reinforce/offline_dataset'
-require 'reinforce/offline/evaluation'
+require "reinforce/offline_dataset"
+require "reinforce/offline/evaluation"
 
 describe Reinforce::Offline::Evaluation do
-  it 'computes weighted importance sampling estimate' do
+  it "computes weighted importance sampling estimate" do
     episodes = [
       [
         {reward: 1.0, behavior_prob: 0.5, target_prob: 1.0},
@@ -20,7 +20,7 @@ describe Reinforce::Offline::Evaluation do
     expect(wis).to be_within(1e-6).of(2.0)
   end
 
-  it 'fits tabular FQE and estimates policy value' do
+  it "fits tabular FQE and estimates policy value" do
     dataset = Reinforce::OfflineDataset.new
     10.times do
       dataset.add(state: [:s0], action: :go, reward: 1.0, next_state: [:s1], done: false, timestep: 0)

@@ -3,10 +3,10 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
-require_relative '../experience'
-require_relative '../categorical_distribution'
-require_relative '../prioritized_experience_replay'
-require_relative '../q_function_ann'
+require_relative "../experience"
+require_relative "../categorical_distribution"
+require_relative "../prioritized_experience_replay"
+require_relative "../q_function_ann"
 
 module Reinforce
   module Algorithms
@@ -18,18 +18,18 @@ module Reinforce
 
       attr_reader :logs
 
-      def initialize(environment, learning_rate=2.5e-4, discount_factor=0.99, epsilon = 0.9, q_function_model: nil,
-                     q_function_model_target: nil)
+      def initialize(environment, learning_rate = 2.5e-4, discount_factor = 0.99, epsilon = 0.9, q_function_model: nil,
+        q_function_model_target: nil)
         @environment = environment
-        if q_function_model.nil?
-          @q_function_model = QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
-        else 
-          @q_function_model = q_function_model
-        end 
-        if q_function_model_target.nil?
-          @q_function_model_target = QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
-        else 
-          @q_function_model_target = q_function_model_target
+        @q_function_model = if q_function_model.nil?
+          QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
+        else
+          q_function_model
+        end
+        @q_function_model_target = if q_function_model_target.nil?
+          QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
+        else
+          q_function_model_target
         end
         # Create prioritized experience replay store
         @prioritized_experience_replay = PrioritizedExperienceReplay.new
@@ -54,7 +54,7 @@ module Reinforce
           # Obtain the logits of each action from the model
           logits = @q_function_model.forward(state)
           # Return greedy action from the distribution
-          #CategoricalDistribution.new(logits: logits).greedy
+          # CategoricalDistribution.new(logits: logits).greedy
           logits.argmax.to_i
         end
       end
@@ -68,9 +68,8 @@ module Reinforce
       # terminates)
       # @return [void]
       def train(episodes:, steps_per_episode:, **_kwargs)
-
         total_steps = episodes * steps_per_episode
-        
+
         # Epsilon greedy algorithm implements a dynamic exploration /
         # exploitation tradeoff. The epsilon parameter starts at the initial
         # value and decays over the training process to reach zero at the end
@@ -86,7 +85,7 @@ module Reinforce
         episode_reward = 0
 
         # Training loop
-        1.upto(total_steps) do 
+        1.upto(total_steps) do
           # warn "Episode: #{episode_number}"
           progress = global_step.to_f / total_steps * 100
           print "\rTraining: #{progress.round(2)}%" if global_step % 100 == 0
@@ -135,11 +134,11 @@ module Reinforce
               criterion = Torch::NN::MSELoss.new(reduction: "none")
               loss = (weights * criterion.call(told_val, target)).mean
               @logs[:loss] << loss.item
-              #warn "Loss: #{loss.item}"
+              # warn "Loss: #{loss.item}"
               @optimizer.zero_grad
               loss.backward
               @optimizer.step
-              #@q_function_model.update(experience)
+              # @q_function_model.update(experience)
 
               # Feed the freshly-observed TD-errors back so future sampling
               # reflects how wrong the Q-function currently is about these
@@ -168,21 +167,20 @@ module Reinforce
           # Decay epsilon
           epsilon = @initial_epsilon * (total_steps - global_step) / total_steps
         end
-
-      end     
+      end
 
       def predict(state)
         # Return the action to be taken according to the policy
         @q_function_model.get_action(state)
       end
-      
-    # Save the model after training_start
+
+      # Save the model after training_start
 
       def save(path)
         @q_function_model.save(path)
       end
-        
-        # load the model if a file already exists
+
+      # load the model if a file already exists
       def load(path)
         @q_function_model.load(path)
       end
@@ -198,7 +196,6 @@ module Reinforce
         indices = actions.long.reshape(-1, 1)
         q_values.gather(1, indices).reshape(-1)
       end
-
     end
   end
 end

@@ -3,7 +3,7 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
-require 'forwardable'
+require "forwardable"
 
 class CategoricalDistributionFactory
   def self.create_from_logits(logits)

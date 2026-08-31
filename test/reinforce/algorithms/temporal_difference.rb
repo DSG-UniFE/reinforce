@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'reinforce/algorithms/temporal_difference'
+require "reinforce/algorithms/temporal_difference"
 
 describe Reinforce::Algorithms::TemporalDifference do
   let(:environment) do
@@ -18,12 +18,12 @@ describe Reinforce::Algorithms::TemporalDifference do
     )
   end
 
-  it 'can be instantiated' do
+  it "can be instantiated" do
     expect(agent).not.to be_nil
     expect(agent.q_table).to be_a(Hash)
   end
 
-  it 'chooses the greedy action when epsilon is zero' do
+  it "chooses the greedy action when epsilon is zero" do
     state = [0, 0]
     agent.q_table[state.freeze][:left] = 1.0
     agent.q_table[state.freeze][:right] = 2.0
@@ -32,7 +32,7 @@ describe Reinforce::Algorithms::TemporalDifference do
     expect(agent.predict(state)).to be == :right
   end
 
-  it 'performs q-learning update using max next-state value' do
+  it "performs q-learning update using max next-state value" do
     state = [0, 0]
     next_state = [0, 1]
     agent.q_table[next_state.freeze][:left] = 2.0
@@ -41,10 +41,10 @@ describe Reinforce::Algorithms::TemporalDifference do
     # target = 1 + 0.5 * 4 = 3, update from 0 with lr=0.5 gives 1.5
     agent.learn(state, :left, 1.0, next_state)
 
-    expect(agent.q_table[state.freeze][:left]).to be == 1.5
+    expect(agent.q_table[state.freeze][:left]).to be_within(1e-9).of(1.5)
   end
 
-  it 'ignores bootstrap term on terminal transitions' do
+  it "ignores bootstrap term on terminal transitions" do
     state = [1, 1]
     next_state = [1, 2]
     agent.q_table[next_state.freeze][:left] = 100.0
@@ -52,10 +52,10 @@ describe Reinforce::Algorithms::TemporalDifference do
     # target = reward = 2, update from 0 with lr=0.5 gives 1.0
     agent.learn(state, :right, 2.0, next_state, done: true)
 
-    expect(agent.q_table[state.freeze][:right]).to be == 1.0
+    expect(agent.q_table[state.freeze][:right]).to be_within(1e-9).of(1.0)
   end
 
-  it 'supports on-policy (sarsa-style) updates with next_action' do
+  it "supports on-policy (sarsa-style) updates with next_action" do
     state = [2, 2]
     next_state = [2, 3]
     agent.q_table[next_state.freeze][:left] = 5.0
@@ -65,10 +65,10 @@ describe Reinforce::Algorithms::TemporalDifference do
     # target = 1 + 0.5 * 1 = 1.5, update from 0 with lr=0.5 gives 0.75
     agent.learn(state, :left, 1.0, next_state, on_policy: true, next_action: :right)
 
-    expect(agent.q_table[state.freeze][:left]).to be == 0.75
+    expect(agent.q_table[state.freeze][:left]).to be_within(1e-9).of(0.75)
   end
 
-  it 'can reset learned values' do
+  it "can reset learned values" do
     state = [0, 0]
     agent.learn(state, :left, 1.0, [0, 1])
     expect(agent.q_table[state.freeze][:left]).not.to be == 0.0

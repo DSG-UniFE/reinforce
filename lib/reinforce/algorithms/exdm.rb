@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require 'torch'
-require_relative '../networks'
-require_relative './sac'
-require_relative '../models/diffusion_policy'
-require_relative '../models/diffusion_score_model'
-require_relative '../offline/intrinsic_rewards/score_bonus'
+require "torch"
+require_relative "../networks"
+require_relative "sac"
+require_relative "../models/diffusion_policy"
+require_relative "../models/diffusion_score_model"
+require_relative "../offline/intrinsic_rewards/score_bonus"
 
 module Reinforce
   module Algorithms
@@ -17,14 +17,14 @@ module Reinforce
 
       attr_reader :policy_model, :q_network, :q_target_network, :score_model, :logs, :sac
 
-      def initialize(dataset=nil, action_space: nil, state_size: nil, learning_rate: 3e-4, discount_factor: 0.99,
+      def initialize(dataset = nil, action_space: nil, state_size: nil, learning_rate: 3e-4, discount_factor: 0.99,
         entropy_coefficient: 0.1, intrinsic_coefficient: 0.1, hidden_size: 64, noise_std: 0.1,
         policy_model: nil, q1_model: nil, q2_model: nil, q1_target_model: nil, q2_target_model: nil, score_model: nil)
         @dataset = dataset
         if @dataset.nil? && (action_space.nil? || state_size.nil?)
-          raise ArgumentError, 'action_space and state_size are required when dataset is nil'
+          raise ArgumentError, "action_space and state_size are required when dataset is nil"
         end
-        raise ArgumentError, 'dataset cannot be empty' if !@dataset.nil? && @dataset.empty?
+        raise ArgumentError, "dataset cannot be empty" if !@dataset.nil? && @dataset.empty?
 
         @actions = action_space || @dataset.transitions.map { |transition| transition[:action] }.uniq
         @action_to_index = {}
@@ -181,8 +181,8 @@ module Reinforce
         state_size = @state_size
         proxy.define_singleton_method(:actions) { actions }
         proxy.define_singleton_method(:state_size) { state_size }
-        proxy.define_singleton_method(:reset) { raise 'offline proxy does not support reset' }
-        proxy.define_singleton_method(:step) { |_action| raise 'offline proxy does not support step' }
+        proxy.define_singleton_method(:reset) { raise "offline proxy does not support reset" }
+        proxy.define_singleton_method(:step) { |_action| raise "offline proxy does not support step" }
         proxy
       end
     end

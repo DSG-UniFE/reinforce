@@ -4,9 +4,9 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi and Filippo Poltronieri.
 
-require 'reinforce'
-require 'torch'
-require 'forwardable'
+require "reinforce"
+require "torch"
+require "forwardable"
 
 # Create the environment
 size = 10
@@ -84,16 +84,16 @@ agent = Reinforce::Algorithms::MonteCarloPolicyGradient.new(state_size, num_acti
 end
 
 # Print the learned policy
-puts 'Learned Policy'
+puts "Learned Policy"
 2.times do |i|
   warn "Starting episode #{i}"
   state = environment.reset
   max_actions_per_episode.times do
     action = agent.predict(Torch::Tensor.new(state))
     state, _, done = environment.step(action)
-    #warn "State: #{state} Action: #{action} Done: #{done}"
+    # warn "State: #{state} Action: #{action} Done: #{done}"
     if done
-      puts 'Goal reached!'
+      puts "Goal reached!"
       break
     end
   end

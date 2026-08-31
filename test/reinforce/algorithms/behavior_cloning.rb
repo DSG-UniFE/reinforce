@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require 'reinforce/offline_dataset'
-require 'reinforce/algorithms/behavior_cloning'
+require "reinforce/offline_dataset"
+require "reinforce/algorithms/behavior_cloning"
 
 describe Reinforce::Algorithms::BehaviorCloning do
-  it 'learns an ANN policy from offline data and predicts dominant actions' do
+  it "learns an ANN policy from offline data and predicts dominant actions" do
     srand(1234)
     Torch.manual_seed(1234)
     dataset = Reinforce::OfflineDataset.new

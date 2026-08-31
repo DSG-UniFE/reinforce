@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'torch'
-require_relative '../networks'
+require "torch"
+require_relative "../networks"
 
 module Reinforce
   module Algorithms
@@ -14,7 +14,7 @@ module Reinforce
       def initialize(dataset, action_space: nil, learning_rate: 1e-3, discount_factor: 0.99, alpha: 0.1,
         hidden_size: 64, q_network: nil, q_target_network: nil)
         @dataset = dataset
-        raise ArgumentError, 'dataset cannot be empty' if @dataset.empty?
+        raise ArgumentError, "dataset cannot be empty" if @dataset.empty?
 
         @actions = action_space || @dataset.transitions.map { |t| t[:action] }.uniq
         @action_to_index = {}

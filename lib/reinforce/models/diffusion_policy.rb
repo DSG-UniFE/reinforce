@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'torch'
+require "torch"
 
 module Reinforce
   module Models

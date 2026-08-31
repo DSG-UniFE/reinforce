@@ -3,8 +3,8 @@
 # Released under the MIT License.
 # Copyright, 2023, by Mauro Tortonesi.
 
-require 'torch'
-require_relative '../categorical_distribution'
+require "torch"
+require_relative "../categorical_distribution"
 
 module Reinforce
   module Algorithms
@@ -35,7 +35,7 @@ module Reinforce
 
       def predict(state)
         # Obtain the log probabilities of each action from the model
-        logits =Torch.no_grad { @model.forward(state) }
+        logits = Torch.no_grad { @model.forward(state) }
 
         # Sample an action from the distribution
         pd = CategoricalDistribution.new(logits: logits.to_a)
@@ -79,12 +79,12 @@ module Reinforce
       def save(path)
         @model.save(path)
       end
-      
+
       # load the model at the given path
       def load(path)
         @model.load(path)
       end
-  
+
       private
 
       def calculate_discounted_rewards(rewards)

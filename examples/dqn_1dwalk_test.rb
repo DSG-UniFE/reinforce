@@ -4,16 +4,16 @@
 # Released under the MIT License.
 # Copyright, 2024, by Mauro Tortonesi and Filippo Poltronieri.
 
-require 'reinforce'
-require 'forwardable'
+require "reinforce"
+require "forwardable"
 
 environment = Reinforce::Environments::OneDimensionalWalk.new(10)
 
 agent = Reinforce::Algorithms::DQN.new(environment)
 
-max_actions_per_episode = 50 
+max_actions_per_episode = 50
 
-agent.load('1dwalk_dqn.pth')
+agent.load("1dwalk_dqn.pth")
 
 testing_episodes = 10
 
@@ -26,10 +26,8 @@ testing_episodes.times do |i|
     environment.render($stdout)
     moves += 1
     if done
-      warn 'Goal reached!' + "in #{moves} moves.\n"
+      warn "Goal reached!" + "in #{moves} moves.\n"
       break
     end
   end
 end
-
-

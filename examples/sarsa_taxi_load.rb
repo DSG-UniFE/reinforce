@@ -9,7 +9,7 @@ require 'torch'
 require 'forwardable'
 
 # Create the environment
-environment = Reinforce::Environments::TaxiV2.new
+environment = Reinforce::Environments::Taxi.new(randomize: false, observe_passenger_and_destination: true, dropoff_reward: 20)
 state_size = environment.state_size
 num_actions = environment.actions.size
 

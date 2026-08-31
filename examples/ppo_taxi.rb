@@ -10,7 +10,7 @@ require 'forwardable'
 require 'unicode_plot'
 
 # Create the environment
-environment = Reinforce::Environments::TaxiV2.new
+environment = Reinforce::Environments::Taxi.new(randomize: false, observe_passenger_and_destination: true, dropoff_reward: 20)
 
 # Parameters
 learning_rate = 2.5e-4

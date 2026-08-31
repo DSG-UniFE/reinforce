@@ -15,17 +15,15 @@ require_relative "reinforce/environments/1d_walk"
 require_relative "reinforce/environments/game_2048"
 require_relative "reinforce/environments/gridworld"
 require_relative "reinforce/environments/taxi"
-require_relative "reinforce/environments/taxiv2"
 require_relative "reinforce/algorithms/sarsa"
 require_relative "reinforce/algorithms/temporal_difference"
 
 module Reinforce
-  
   # Calculate the moving average of the rewards.
   def self.moving_average(data, window_size)
     data.each_cons(window_size).map { |window| window.sum / window.size.to_f }
   end
-  
+
   class Error < StandardError; end
 end
 

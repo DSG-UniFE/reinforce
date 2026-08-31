@@ -39,19 +39,32 @@ jobs:
           bundle exec ruby -I"${gem_dir}/lib" -e 'require "reinforce"'
 
   test-macos:
-    name: Test (macOS compatibility)
+    name: Test (macOS Apple Silicon)
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
-    runs-on: macos-14
+    # macos-14's default toolchain is Xcode 15.4 (Apple clang ~15), which is
+    # too old to compile LibTorch 2.13's headers under torch-rb's required
+    # -std=c++20 (fails with internal static_assert errors in backends.o,
+    # device.o, cuda.o). macos-15 defaults to Xcode 16.4, which builds it
+    # cleanly -- reproduced locally against the exact same downloaded
+    # libtorch-macos-arm64-2.13.0.zip with a modern clang.
+    runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v4
       - name: Install LibTorch
-        run: brew install pytorch
+        env:
+          LIBTORCH_VERSION: "2.13.0"
+        run: |
+          curl --fail --location --retry 3 \
+            "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-${LIBTORCH_VERSION}.zip" \
+            --output "$RUNNER_TEMP/libtorch.zip"
+          unzip -q "$RUNNER_TEMP/libtorch.zip" -d "$RUNNER_TEMP"
+          echo "LIBTORCH_DIR=$RUNNER_TEMP/libtorch" >> "$GITHUB_ENV"
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: 4.0.6
           bundler-cache: false
       - name: Configure Torch.rb
-        run: bundle config set build.torch-rb --with-torch-dir="$(brew --prefix)"
+        run: bundle config set build.torch-rb --with-torch-dir="$LIBTORCH_DIR"
       - run: bundle install --jobs 3 --retry 3
       - run: bundle exec sus

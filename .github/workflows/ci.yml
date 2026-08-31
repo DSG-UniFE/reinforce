@@ -33,7 +33,14 @@ jobs:
       - run: bundle install --jobs 3 --retry 3
       - name: Lint
         run: bundle exec standardrb
-      - run: bundle exec sus
+      - name: Test
+        run: bundle exec sus
+        env:
+          COVERAGE: Quiet
+      - name: Validate coverage
+        run: bundle exec bake covered:validate --minimum 0.90
+        env:
+          COVERAGE: BriefSummary
       - run: bundle exec gem build reinforce.gemspec --output reinforce.gem
       - run: |
           gem unpack --target "$RUNNER_TEMP/reinforce-gem" reinforce.gem

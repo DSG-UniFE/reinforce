@@ -6,6 +6,7 @@
 require 'torch'
 require 'forwardable'
 require_relative './categorical_distribution'
+require_relative './networks'
 
 module Reinforce
   # input to the network is the current state
@@ -17,17 +18,10 @@ module Reinforce
 
     def initialize(state_size, num_actions, learning_rate, discount_factor, architecture: nil)
       @num_actions = num_actions
-      if architecture.nil?
-        @architecture = Torch::NN::Sequential.new(
-          Torch::NN::Linear.new(state_size, 512),
-          Torch::NN::ReLU.new,
-          Torch::NN::Linear.new(512, 512),
-          Torch::NN::ReLU.new,
-          Torch::NN::Linear.new(512, num_actions)
-        )
-      else
-        @architecture = architecture
-      end
+      # 512-wide, 2 hidden layers: this default predates Reinforce::Networks
+      # and is kept as-is so existing callers/examples that rely on it are
+      # unaffected; everywhere else in the library defaults to hidden_size: 64.
+      @architecture = architecture || Reinforce::Networks.mlp(state_size, num_actions, hidden_size: 512)
       @architecture.train # Enable training mode
       # Create the optimizer
       @optimizer = Torch::Optim::Adam.new(@architecture.parameters, lr: learning_rate)
@@ -105,24 +99,11 @@ module Reinforce
     end
 
     def soft_update(q_network, tau)
-      # Check validity for tau interpolation parameter
-      tau = tau.to_f unless tau.is_a?(Float)
-      raise ArgumentError 'tau needs to be a real in the (0,1) range' if tau < 0.0 || tau > 1.0
-
-      # Load the parameters of the present network
-      my_params = @architecture.state_dict.transform_values { |v| v.data.clone }
-
-      # Load the parameters of the other network
-      other_q_params = q_network.state_dict.transform_values { |v| v.data.clone }
-
-      # Obtain a new set of parameters through interpolation
-      new_params = {}
-      my_params.each do |k, v|
-        new_params[k] = v * (1 - tau) + other_q_params[k] * tau
-      end
-
-      # Load the new parameters
-      @architecture.load_state_dict(new_params)
+      # q_network may be another QFunctionANN (which delegates #state_dict
+      # to its own @architecture, see def_delegators above) or a raw
+      # Torch::NN::Module -- Networks.soft_update! only needs #state_dict
+      # (and, on the target side, #load_state_dict), so either works.
+      Reinforce::Networks.soft_update!(target: @architecture, online: q_network, tau: tau)
     end
 
     def save(path)

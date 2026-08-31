@@ -30,6 +30,7 @@ end
 # Torch-dependent components are optional at load time.
 begin
   require "torch"
+  require_relative "reinforce/networks"
   require_relative "reinforce/q_function_ann"
   require_relative "reinforce/algorithms/dqn"
   require_relative "reinforce/algorithms/reinforce"

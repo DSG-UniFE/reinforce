@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'torch'
+require_relative '../networks'
 
 module Reinforce
   module Algorithms
@@ -17,13 +18,7 @@ module Reinforce
         @actions.each_with_index { |action, index| @action_to_index[action] = index }
 
         @state_size = flatten_state(@dataset.transitions.first[:state]).size
-        @policy_model = policy_model || Torch::NN::Sequential.new(
-          Torch::NN::Linear.new(@state_size, hidden_size),
-          Torch::NN::ReLU.new,
-          Torch::NN::Linear.new(hidden_size, hidden_size),
-          Torch::NN::ReLU.new,
-          Torch::NN::Linear.new(hidden_size, @actions.size)
-        )
+        @policy_model = policy_model || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
         @policy_model.train
         @optimizer = Torch::Optim::Adam.new(@policy_model.parameters, lr: learning_rate)
         @criterion = Torch::NN::CrossEntropyLoss.new

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'torch'
+require_relative '../networks'
 
 module Reinforce
   module Algorithms
@@ -21,8 +22,8 @@ module Reinforce
         @discount_factor = discount_factor
         @alpha = alpha
 
-        @q_network = q_network || build_q_network(@state_size, @actions.size, hidden_size)
-        @q_target_network = q_target_network || build_q_network(@state_size, @actions.size, hidden_size)
+        @q_network = q_network || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
+        @q_target_network = q_target_network || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
         @q_target_network.load_state_dict(@q_network.state_dict)
         @q_network.train
         @q_target_network.train
@@ -86,16 +87,6 @@ module Reinforce
 
       private
 
-      def build_q_network(state_size, action_size, hidden_size)
-        Torch::NN::Sequential.new(
-          Torch::NN::Linear.new(state_size, hidden_size),
-          Torch::NN::ReLU.new,
-          Torch::NN::Linear.new(hidden_size, hidden_size),
-          Torch::NN::ReLU.new,
-          Torch::NN::Linear.new(hidden_size, action_size)
-        )
-      end
-
       def tensors_from_batch(batch)
         states = Torch.tensor(batch.map { |transition| flatten_state(transition[:state]) }, dtype: :float32)
         action_indices = Torch.tensor(batch.map { |transition| @action_to_index.fetch(transition[:action]) }, dtype: :int64)
@@ -115,14 +106,7 @@ module Reinforce
       end
 
       def soft_update_targets(tau)
-        tau = tau.to_f
-        target_state = @q_target_network.state_dict
-        online_state = @q_network.state_dict
-        mixed = {}
-        target_state.each do |name, value|
-          mixed[name] = value * (1.0 - tau) + online_state[name] * tau
-        end
-        @q_target_network.load_state_dict(mixed)
+        ::Reinforce::Networks.soft_update!(target: @q_target_network, online: @q_network, tau: tau)
       end
     end
   end

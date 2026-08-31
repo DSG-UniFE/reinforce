@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "torch"
+require_relative "../networks"
 
 module Reinforce
   module Algorithms
@@ -301,15 +302,8 @@ module Reinforce
       end
 
       def soft_update_targets
-        [@q1_target_model, @q2_target_model].zip([@q1_model, @q2_model]).each do |target, online|
-          target_state = target.state_dict
-          online_state = online.state_dict
-          mixed = {}
-          target_state.each do |name, value|
-            mixed[name] = value * (1.0 - @tau) + online_state[name] * @tau
-          end
-          target.load_state_dict(mixed)
-        end
+        ::Reinforce::Networks.soft_update!(target: @q1_target_model, online: @q1_model, tau: @tau)
+        ::Reinforce::Networks.soft_update!(target: @q2_target_model, online: @q2_model, tau: @tau)
       end
 
       def alpha

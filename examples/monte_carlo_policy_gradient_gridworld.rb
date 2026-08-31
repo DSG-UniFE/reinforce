@@ -51,7 +51,7 @@ model = NNPolicy.new(state_size, num_actions)
 optimizer = Torch::Optim::Adam.new(model.parameters, lr: learning_rate)
 
 # Create the agent
-agent = Reinforce::Algorithms::Reinforce.new(state_size, num_actions, discount_factor, model, optimizer)
+agent = Reinforce::Algorithms::MonteCarloPolicyGradient.new(state_size, num_actions, discount_factor, model, optimizer)
 
 # Training loop
 1.upto(episodes) do |episode_number|

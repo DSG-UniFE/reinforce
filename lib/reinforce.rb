@@ -33,7 +33,7 @@ begin
   require_relative "reinforce/networks"
   require_relative "reinforce/q_function_ann"
   require_relative "reinforce/algorithms/dqn"
-  require_relative "reinforce/algorithms/reinforce"
+  require_relative "reinforce/algorithms/monte_carlo_policy_gradient"
   require_relative "reinforce/algorithms/ppo"
   require_relative "reinforce/algorithms/sac"
   require_relative "reinforce/algorithms/behavior_cloning"

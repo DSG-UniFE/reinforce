@@ -6,7 +6,13 @@ require 'torch'
 
 module Reinforce
     module Algorithms
-      class Agent < Torch::NN::Module
+      # PPO's actor-critic network: a policy ("actor") model and a value
+      # ("critic") model sharing one training step. Named
+      # ActorCriticNetwork, not Agent, because a bare `Agent` class nested
+      # under `Reinforce::Algorithms` shadowed the top-level
+      # `Reinforce::Agent` contract module for any unqualified
+      # `Reinforce::Agent` reference written elsewhere in this namespace.
+      class ActorCriticNetwork < Torch::NN::Module
 
         attr_reader :policy_model, :value_model
 
@@ -65,7 +71,7 @@ module Reinforce
 
         def initialize(environment, learning_rate, policy=nil, value=nil, clip_param = 0.2, ppo_epochs = 10, minibatch_size = 32, discount_factor = 0.99)
           @environment = environment
-          @agent = Agent.new(environment.state_size, environment.actions.size, policy, value)
+          @agent = ActorCriticNetwork.new(environment.state_size, environment.actions.size, policy, value)
           @gaelam = 0.97
           @clip_param = clip_param
           @ppo_epochs = ppo_epochs

@@ -8,7 +8,14 @@ require_relative '../categorical_distribution'
 
 module Reinforce
   module Algorithms
-    class Reinforce
+    # The classic REINFORCE algorithm (Williams, 1992): a Monte Carlo policy
+    # gradient method, so named because it updates the policy from complete
+    # episode returns rather than bootstrapped estimates. Named
+    # MonteCarloPolicyGradient, not REINFORCE/Reinforce, because a bare
+    # `Reinforce` class nested under `Reinforce::Algorithms` shadowed the
+    # top-level `Reinforce` module for any unqualified `Reinforce::X`
+    # reference written elsewhere in this namespace.
+    class MonteCarloPolicyGradient
       include ::Reinforce::Agent
 
       def initialize(num_states, num_actions, discount_factor, model, optimizer)

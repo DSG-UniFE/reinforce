@@ -10,7 +10,14 @@ module Reinforce
   module Algorithms
     ##
     # This class implements a Reinforcement Learning agent that uses the
-    # n-step SARSA algorithm with an epsilon greedy policy.
+    # n-step SARSA algorithm with an epsilon greedy policy. #train collects
+    # an on-policy trajectory (state, action, next_state, next_action,
+    # reward, done) and delegates the actual TD update to
+    # QFunctionANN#update(..., on_policy: true), which bootstraps from
+    # next_action -- the action the behavior policy actually took next --
+    # rather than the greedy action under the current Q-network. See
+    # Reinforce::Algorithms::TemporalDifference for the tabular equivalent
+    # of this same on_policy: distinction.
     class SARSA
       include ::Reinforce::Agent
 
@@ -98,7 +105,7 @@ module Reinforce
           end
 
           # Update Q function after each batch of actions
-          lvalue = @q_function_model.update(@experience)
+          lvalue = @q_function_model.update(@experience, on_policy: true)
           @logs[:loss] << lvalue
           # Decay epsilon
           epsilon = @initial_epsilon * (num_episodes - episode_number) / num_episodes

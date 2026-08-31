@@ -5,6 +5,11 @@ module Reinforce
     # Generic Temporal Difference learner for discrete action spaces.
     # By default it performs Q-learning; set on_policy: true to perform
     # SARSA-style updates using next_action.
+    #
+    # This is the tabular half of the codebase's on-policy/off-policy TD
+    # story; QFunctionANN#update (see lib/reinforce/q_function_ann.rb,
+    # used by Reinforce::Algorithms::SARSA) implements the same
+    # on_policy: distinction for neural Q-functions.
     class TemporalDifference
       include ::Reinforce::Agent
 

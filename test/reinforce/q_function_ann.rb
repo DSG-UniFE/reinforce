@@ -32,4 +32,50 @@ describe Reinforce::QFunctionANN do
       end
     end
   end
+
+  describe '#update' do
+    it 'bootstraps from next_action (not the greedy action) when on_policy: true' do
+      # Regression test for the SARSA-vs-Q-learning bug found while
+      # reconciling TemporalDifference and SARSA: #update used to always
+      # bootstrap from the greedy action under the current Q-network
+      # (next_q_values.argmax), even when called from SARSA's on-policy
+      # training loop, which had already computed the actual next_action
+      # taken by the behavior policy and thrown it away. See
+      # lib/reinforce/algorithms/sarsa.rb and
+      # lib/reinforce/algorithms/temporal_difference.rb.
+      Torch.manual_seed(42)
+      q_on_policy = Reinforce::QFunctionANN.new(2, 2, 0.01, 0.5)
+      q_off_policy = Reinforce::QFunctionANN.new(2, 2, 0.01, 0.5)
+      # Give both networks identical weights, so the only difference
+      # between the two #update calls below is the on_policy: flag.
+      q_off_policy.load_state_dict(q_on_policy.state_dict)
+
+      next_state = [[0.3, -0.7]]
+      next_q_values = Torch.no_grad { q_on_policy.forward(next_state) }
+      greedy_next_action = next_q_values.argmax(1).to_a.first
+      # With only two actions, "the other one" is guaranteed not to be the
+      # greedy action -- exactly the scenario the old code silently ignored.
+      other_next_action = 1 - greedy_next_action
+
+      # Sanity check: the two candidate bootstrap values must actually
+      # differ, or this test couldn't distinguish the two code paths.
+      greedy_value = next_q_values[0][greedy_next_action].item
+      other_value = next_q_values[0][other_next_action].item
+      expect(greedy_value == other_value).to be == false
+
+      experience = {
+        state: [[0.1, 0.2]],
+        action: [0],
+        next_state: next_state,
+        next_action: [other_next_action],
+        reward: [0.0],
+        done: [false]
+      }
+
+      loss_on_policy = q_on_policy.update(experience, on_policy: true)
+      loss_off_policy = q_off_policy.update(experience, on_policy: false)
+
+      expect(loss_on_policy == loss_off_policy).to be == false
+    end
+  end
 end

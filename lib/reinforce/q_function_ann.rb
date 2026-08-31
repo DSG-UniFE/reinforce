@@ -52,13 +52,27 @@ module Reinforce
       rand(@num_actions)
     end
 
-    def update(experience)
+    def update(experience, on_policy: false)
       # Need to tell Torch not to track the gradient for these operations.
       # See L. Graesser, W.L. Keng, "Foundations of Deep Reinforcement
       # Learning", Section 3.5.2, page 70.
       next_q_values = Torch.no_grad { forward(experience[:next_state]) }
-      # use argmax to select next_actions
-      next_actions = next_q_values.argmax(1)
+
+      # The bootstrap action for the TD target. Mirrors
+      # Reinforce::Algorithms::TemporalDifference#learn's on_policy: flag
+      # (lib/reinforce/algorithms/temporal_difference.rb): on_policy: true
+      # computes a genuine SARSA target, bootstrapping from the action the
+      # behavior policy actually took next (experience[:next_action]); the
+      # default, on_policy: false, computes a (batched) Q-learning target,
+      # bootstrapping from the greedy action under the current Q-network
+      # instead. `next_action` entries may be plain Ruby integers or 0-dim
+      # Torch tensors depending on which policy produced them, hence #to_i.
+      next_actions = if on_policy
+        experience[:next_action].map(&:to_i)
+      else
+        next_q_values.argmax(1).to_a
+      end
+
       # compute target actions
       # here we need to create first a tensor of zeros to keep the dimensions and types
       # of the other tensors.
@@ -67,7 +81,6 @@ module Reinforce
         if done
           target_actions[i] = reward
         else
-          # the last part could be next_action, not next_q_values...
           target_actions[i] = reward + @discount_factor * next_q_values[i][next_action]
         end
       end

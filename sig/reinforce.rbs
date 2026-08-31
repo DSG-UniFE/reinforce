@@ -1,4 +1,38 @@
 module Reinforce
   VERSION: String
-  # See the writing guide of rbs: https://github.com/ruby/rbs#guides
+
+  # The one thing every algorithm in this library has in common: given a
+  # state, it can produce an action. See lib/reinforce/agent.rb for why
+  # #train/#save/#load are deliberately not part of this contract.
+  module Agent
+    # @parameter state a state from the environment's state space.
+    # @returns an action from the environment's action space.
+    def predict: (untyped state) -> untyped
+  end
+
+  # The contract every environment in this library follows. See
+  # lib/reinforce/environment.rb and readme.md's "Define a new environment"
+  # section for the narrative version of this contract.
+  module Environment
+    # Reset the environment to its initial state.
+    # @returns the initial state.
+    def reset: () -> untyped
+
+    # @returns the size of the state vector.
+    def state_size: () -> Integer
+
+    # @returns the available actions. For a discrete action space,
+    #   `actions.size` gives the number of actions, and #step accepts
+    #   either an element of this array or its index into it.
+    def actions: () -> Array[untyped]
+
+    # Execute an action and advance the environment by one step.
+    # @parameter action an element of #actions, or its index.
+    # @returns a 4-tuple of `(next_state, reward, done, info)`.
+    def step: (untyped action) -> [untyped, Numeric, bool, Hash[untyped, untyped]]
+
+    # Render the environment to an output stream. Optional: unlike the
+    # methods above, no algorithm in this library depends on #render.
+    def render: (?IO output_stream) -> void
+  end
 end

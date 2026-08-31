@@ -9,3 +9,4 @@
 .ruby-version
 /vendor/
 gems.locked
+.projections.json

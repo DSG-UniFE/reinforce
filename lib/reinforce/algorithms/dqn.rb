@@ -123,14 +123,28 @@ module Reinforce
               t_actions = Torch.tensor(experience[:action])
               old_val = @q_function_model.forward(experience[:state])
               told_val = q_values_for_actions(old_val, t_actions)
-              criterion = Torch::NN::MSELoss.new
-              loss = criterion.call(told_val, target)
+
+              # Weight each transition's squared error by its importance-
+              # sampling weight to correct for the sampling bias that
+              # PrioritizedExperienceReplay's priority-proportional
+              # sampling introduces (Schaul et al., 2015) -- unweighted
+              # MSE would systematically over-train on the high-priority
+              # transitions it oversamples.
+              weights = Torch.tensor(experience[:weights], dtype: :float32)
+              criterion = Torch::NN::MSELoss.new(reduction: "none")
+              loss = (weights * criterion.call(told_val, target)).mean
               @logs[:loss] << loss.item
               #warn "Loss: #{loss.item}"
               @optimizer.zero_grad
               loss.backward
               @optimizer.step
               #@q_function_model.update(experience)
+
+              # Feed the freshly-observed TD-errors back so future sampling
+              # reflects how wrong the Q-function currently is about these
+              # transitions.
+              td_errors = (target - told_val).detach.to_a
+              @prioritized_experience_replay.update_priorities(experience[:indices], td_errors)
             end
 
             # Soft-update target Q function every @update_frequency_for_q_target steps

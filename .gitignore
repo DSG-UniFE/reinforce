@@ -8,3 +8,4 @@
 *.results
 .ruby-version
 /vendor/
+gems.locked

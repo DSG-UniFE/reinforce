@@ -53,12 +53,13 @@ module Reinforce
 
       # Train the agent.
       #
-      # @param num_episodes [Integer] the number of episodes to consider
-      # @param batch_size [Integer] the number of actions that the agent takes
-      # in each episode (note that the agent might reach the goal state before
-      # this number is reached: in that case, the episode terminates)
+      # @param episodes [Integer] the number of episodes to consider
+      # @param steps_per_episode [Integer] the number of actions that the
+      # agent takes in each episode (note that the agent might reach the
+      # goal state before this number is reached: in that case, the episode
+      # terminates)
       # @return [void]
-      def train(num_episodes, batch_size)
+      def train(episodes:, steps_per_episode:, **_kwargs)
         # Epsilon greedy algorithm implements a dynamic exploration /
         # exploitation tradeoff. The epsilon parameter starts at the initial
         # value and decays over the training process to reach zero at the end
@@ -68,16 +69,16 @@ module Reinforce
         episode_reward = 0
         episode_length = 0
         # Training loop
-        1.upto(num_episodes) do |episode_number|
+        1.upto(episodes) do |episode_number|
           #puts "Episode: #{episode_number} epsilon: #{epsilon}"
-          progress = episode_number.to_f / num_episodes * 100
+          progress = episode_number.to_f / episodes * 100
           print "\rTraining: #{progress.round(2)}%" if episode_number % 10 == 0
           # Reset the environment
           state = @environment.reset
 
           action = choose_action(state, epsilon)
           # Setup number of actions to take before updating the Q function
-          actions_left = batch_size - 1
+          actions_left = steps_per_episode - 1
 
           # Episode loop
           loop do
@@ -108,7 +109,7 @@ module Reinforce
           lvalue = @q_function_model.update(@experience, on_policy: true)
           @logs[:loss] << lvalue
           # Decay epsilon
-          epsilon = @initial_epsilon * (num_episodes - episode_number) / num_episodes
+          epsilon = @initial_epsilon * (episodes - episode_number) / episodes
 
           # Reset learning experience
           @experience.reset

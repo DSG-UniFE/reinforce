@@ -61,14 +61,15 @@ module Reinforce
 
       # Train the agent.
       #
-      # @param num_episodes [Integer] the number of episodes to consider
-      # @param batch_size [Integer] the number of actions that the agent takes
-      # in each episode (note that the agent might reach the goal state before
-      # this number is reached: in that case, the episode terminates)
+      # @param episodes [Integer] the number of episodes to consider
+      # @param steps_per_episode [Integer] the number of actions that the
+      # agent takes in each episode (note that the agent might reach the
+      # goal state before this number is reached: in that case, the episode
+      # terminates)
       # @return [void]
-      def train(num_episodes, batch_size)
+      def train(episodes:, steps_per_episode:, **_kwargs)
 
-        total_steps = num_episodes * batch_size
+        total_steps = episodes * steps_per_episode
         
         # Epsilon greedy algorithm implements a dynamic exploration /
         # exploitation tradeoff. The epsilon parameter starts at the initial
@@ -80,7 +81,7 @@ module Reinforce
         global_step = 0
 
         state = @environment.reset
-        actions_left = batch_size
+        actions_left = steps_per_episode
         episode_length = 0
         episode_reward = 0
 
@@ -156,7 +157,7 @@ module Reinforce
           state = next_state
 
           if done || actions_left.zero? # Reached the goal state
-            actions_left = batch_size
+            actions_left = steps_per_episode
             state = @environment.reset
             @logs[:episode_reward] << episode_reward
             @logs[:episode_length] << episode_length

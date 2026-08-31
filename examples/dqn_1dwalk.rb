@@ -14,7 +14,7 @@ agent = Reinforce::Algorithms::DQN.new(environment, 0.01, 0.7)
 
 max_actions_per_episode = 50 
 
-agent.train(1000, max_actions_per_episode)
+agent.train(episodes: 1000, steps_per_episode: max_actions_per_episode)
 
 agent.save('1dwalk_dqn.pth')
 

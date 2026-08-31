@@ -28,7 +28,7 @@ describe "SAC real-environment smoke test" do
         warmup_steps: 8
       )
 
-      agent.train(12, 3)
+      agent.train(episodes: 12, steps_per_episode: 3)
 
       expect(agent.logs[:episode_reward].size).to be == 12
       expect(agent.logs[:loss].empty?).to be == false

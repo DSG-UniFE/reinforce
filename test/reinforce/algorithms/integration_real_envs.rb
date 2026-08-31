@@ -13,7 +13,7 @@ describe 'trainer integration on real environments' do
     q_function = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size, 0.01, 0.9)
     agent = Reinforce::Algorithms::SARSA.new(environment, q_function, 0.3)
 
-    agent.train(4, 8)
+    agent.train(episodes: 4, steps_per_episode: 8)
 
     expect(agent.logs[:loss].size).to be == 4
     expect(agent.logs[:episode_reward].size > 0).to be == true
@@ -26,7 +26,7 @@ describe 'trainer integration on real environments' do
     environment = Reinforce::Environments::GridWorld.new(5, [0, 0], [4, 4], 0)
     agent = Reinforce::Algorithms::PPO.new(environment, 0.001, nil, nil, 0.2, 1, 4, 0.95)
 
-    agent.train(3, 8)
+    agent.train(episodes: 3, steps_per_episode: 8)
 
     expect(agent.logs[:loss].size > 0).to be == true
     expect(agent.logs[:episode_reward].size > 0).to be == true

@@ -45,7 +45,7 @@ describe Reinforce::Algorithms::SARSA do
     env.define_singleton_method(:step) { |_action| [[1], 1.0, true] }
 
     sarsa = Reinforce::Algorithms::SARSA.new(env, q_model, 1.0)
-    sarsa.train(1, 2)
+    sarsa.train(episodes: 1, steps_per_episode: 2)
 
     expect(q_model.seen_states).to be == [[0], [1]]
   end
@@ -72,7 +72,7 @@ describe Reinforce::Algorithms::SARSA do
     env.define_singleton_method(:step) { |_action| [[1], 1.0, true] }
 
     sarsa = Reinforce::Algorithms::SARSA.new(env, q_model, 1.0)
-    sarsa.train(2, 2)
+    sarsa.train(episodes: 2, steps_per_episode: 2)
 
     expect(q_model.update_on_policy_values).to be == [true, true]
   end

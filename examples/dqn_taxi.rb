@@ -28,7 +28,7 @@ warn "State size: #{state_size} actions: #{num_actions}"
 agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_factor) 
 
 # Train the agent
-agent.train(episodes, max_actions_per_episode)
+agent.train(episodes:, steps_per_episode: max_actions_per_episode)
 # Save the model
 agent.save('taxi_dqn.pth')
 

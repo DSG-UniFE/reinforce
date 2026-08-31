@@ -76,15 +76,15 @@ module Reinforce
         @actions[action_index]
       end
 
-      def train(num_episodes, max_steps_per_episode)
+      def train(episodes:, steps_per_episode:, **_kwargs)
         global_step = 0
 
-        num_episodes.times do
+        episodes.times do
           state = @environment.reset
           episode_reward = 0.0
           episode_length = 0
 
-          max_steps_per_episode.times do
+          steps_per_episode.times do
             action = select_action(state)
             action_index = @action_to_index.fetch(action)
             next_state, reward, done = @environment.step(action_index)

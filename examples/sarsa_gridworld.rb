@@ -32,7 +32,7 @@ q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning
 agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon)
 
 # Train the agent
-agent.train(episodes, max_actions_per_episode)
+agent.train(episodes:, steps_per_episode: max_actions_per_episode)
 
 # Save the model
 agent.save('gridworld_sarsa.pth')

@@ -171,9 +171,9 @@ module Reinforce
           [Torch.tensor(advantages, dtype: :float32), Torch.tensor(returns, dtype: :float32)]
         end
 
-        def train(num_episodes, batch_size)
+        def train(episodes:, steps_per_episode:, **_kwargs)
           # Initialize the experience buffer, tensors that will store the data
-          num_steps = batch_size
+          num_steps = steps_per_episode
           buffers = build_rollout_buffers(num_steps)
           obs = buffers[:obs]
           actions = buffers[:actions]
@@ -189,16 +189,16 @@ module Reinforce
           episode_lenth = 0
           # Loop over the episodes
 
-            1.upto(num_episodes) do |episode_number|
-                progress = episode_number.to_f / num_episodes * 100
+            1.upto(episodes) do |episode_number|
+                progress = episode_number.to_f / episodes * 100
                 print "\rTraining: #{progress.round(2)}%" if episode_number % 10 == 0
                 # Anneal the learning rate
-                fract = 1.0 - (episode_number -1) / num_episodes
+                fract = 1.0 - (episode_number -1) / episodes
                 lrnow = @learning_rate * fract
                 @optimizer.param_groups[0][:lr] = lrnow
                 episode_reward = 0
 
-                batch_size.times do |step|
+                num_steps.times do |step|
 
                   global_step += 1
                   obs[step] = next_obs
@@ -254,7 +254,7 @@ module Reinforce
 
                 1.upto(@ppo_epochs) do |epoch|
                   b_inds.shuffle!
-                  (0..(batch_size -1)).step(@minibatch_size) do |start|
+                  (0..(num_steps -1)).step(@minibatch_size) do |start|
                     end_s = start + @minibatch_size
                     mb_inds = b_inds[start..end_s]
                     _, newlogprob, entropy, newvalue = @agent.get_action_and_value(b_obs[Torch.tensor(mb_inds)], b_actions[Torch.tensor(mb_inds)])

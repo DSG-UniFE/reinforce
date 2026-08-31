@@ -57,7 +57,7 @@ describe Reinforce::Algorithms::SAC do
       agent = build_agent(critic_updates_per_step: 1, policy_updates_per_step: 1, target_updates_per_step: 1)
 
       action_before = agent.predict([0.0])
-      agent.train(150, 1)
+      agent.train(episodes: 150, steps_per_episode: 1)
       action_after = agent.predict([0.0])
 
       expect(%i[bad good].include?(action_before)).to be == true
@@ -117,7 +117,7 @@ describe Reinforce::Algorithms::SAC do
   it "round-trips model state through a checkpoint" do
     TorchTestHelpers.with_torch_seed do
       agent = build_agent(batch_size: 2, warmup_steps: 2)
-      agent.train(4, 1)
+      agent.train(episodes: 4, steps_per_episode: 1)
       prediction = agent.predict([0.0])
 
       Dir.mktmpdir do |directory|

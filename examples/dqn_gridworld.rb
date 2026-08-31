@@ -57,7 +57,7 @@ agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_fact
                                        q_function_model: q_function_model, q_function_model_target: q_function_model_target)
 
 # Train the agent
-agent.train(episodes, max_actions_per_episode)
+agent.train(episodes:, steps_per_episode: max_actions_per_episode)
 agent.save('gridworld_dqn.pth')
 # Print the learned policy
 

@@ -58,7 +58,7 @@ describe 'integration learning smoke tests' do
     before_logits = q_model.forward([0.0]).to_a
     before_gap = before_logits[1] - before_logits[0]
 
-    agent.train(200, 4)
+    agent.train(episodes: 200, steps_per_episode: 4)
 
     after_logits = q_model.forward([0.0]).to_a
     after_gap = after_logits[1] - after_logits[0]
@@ -85,7 +85,7 @@ describe 'integration learning smoke tests' do
     before_logits = agent.agent.policy_model.call(state).to_a
     before_gap = before_logits[1] - before_logits[0]
 
-    agent.train(80, 8)
+    agent.train(episodes: 80, steps_per_episode: 8)
 
     after_logits = agent.agent.policy_model.call(state).to_a
     after_gap = after_logits[1] - after_logits[0]

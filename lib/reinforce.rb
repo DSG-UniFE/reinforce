@@ -40,6 +40,7 @@ begin
   require_relative "reinforce/algorithms/conservative_q_learning"
   require_relative "reinforce/models/discrete_policy_network"
   require_relative "reinforce/models/denoising_autoencoder"
+  require_relative "reinforce/models/dueling_q_network"
   require_relative "reinforce/offline/intrinsic_rewards/score_bonus"
   require_relative "reinforce/algorithms/exdm"
 rescue LoadError => error

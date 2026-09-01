@@ -106,8 +106,8 @@ module Reinforce
           end
 
           # Update Q function after each batch of actions
-          lvalue = @q_function_model.update(@experience, on_policy: true)
-          @logs[:loss] << lvalue
+          result = @q_function_model.update(@experience, on_policy: true)
+          @logs[:loss] << result[:loss]
           # Decay epsilon
           epsilon = @initial_epsilon * (episodes - episode_number) / episodes
 

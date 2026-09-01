@@ -52,63 +52,93 @@ module Reinforce
       rand(@num_actions)
     end
 
-    def update(experience, on_policy: false)
+    # Perform one TD update from a batch of experience.
+    #
+    # @parameter experience [Hash] a batch with :state, :action, :next_state,
+    #   :reward, :done, and (if on_policy: true) :next_action keys -- the
+    #   shape Reinforce::Experience#sample and
+    #   Reinforce::PrioritizedExperienceReplay#sample both return.
+    # @parameter on_policy [Boolean] bootstrap from experience[:next_action]
+    #   (a genuine SARSA target) instead of a greedy or Double-DQN-selected
+    #   action. Mirrors Reinforce::Algorithms::TemporalDifference#learn's
+    #   on_policy: flag for the tabular case. Takes priority over
+    #   double_dqn: if both are given -- an on-policy algorithm's next
+    #   action comes from the behavior policy, not from any Q-network.
+    # @parameter target [#forward, nil] an optional separate network to
+    #   bootstrap next-state Q-values from (e.g. DQN's slowly-updated
+    #   target network -- see Reinforce::Networks.soft_update!). Defaults
+    #   to bootstrapping from this network itself, which is what a
+    #   target-network-free caller like SARSA wants.
+    # @parameter double_dqn [Boolean] when true (and target: is given),
+    #   selects the bootstrap action via this (online) network's argmax but
+    #   evaluates its value using target's Q-values instead of this
+    #   network's own -- Van Hasselt et al. (2015)'s fix for vanilla DQN's
+    #   overestimation bias, which comes from the same noisy estimator
+    #   both picking the "best" action and judging how good it is.
+    # @parameter weights [Array, Torch::Tensor, nil] optional per-sample
+    #   importance-sampling weights (e.g. from
+    #   Reinforce::PrioritizedExperienceReplay#sample), applied to the loss
+    #   so priority-proportional sampling doesn't bias the expected update.
+    #   Defaults to unweighted (uniform) loss.
+    # @returns [Hash] `{loss:, td_errors:}` -- td_errors are the raw
+    #   (signed) target-minus-prediction values, e.g. for
+    #   Reinforce::PrioritizedExperienceReplay#update_priorities.
+    def update(experience, on_policy: false, target: nil, double_dqn: false, weights: nil)
       # Need to tell Torch not to track the gradient for these operations.
       # See L. Graesser, W.L. Keng, "Foundations of Deep Reinforcement
       # Learning", Section 3.5.2, page 70.
-      next_q_values = Torch.no_grad { forward(experience[:next_state]) }
+      bootstrap_source = target || self
+      next_q_values = Torch.no_grad { bootstrap_source.forward(experience[:next_state]) }
 
-      # The bootstrap action for the TD target. Mirrors
-      # Reinforce::Algorithms::TemporalDifference#learn's on_policy: flag
-      # (lib/reinforce/algorithms/temporal_difference.rb): on_policy: true
-      # computes a genuine SARSA target, bootstrapping from the action the
-      # behavior policy actually took next (experience[:next_action]); the
-      # default, on_policy: false, computes a (batched) Q-learning target,
-      # bootstrapping from the greedy action under the current Q-network
-      # instead. `next_action` entries may be plain Ruby integers or 0-dim
-      # Torch tensors depending on which policy produced them, hence #to_i.
+      # `next_action` entries may be plain Ruby integers or 0-dim Torch
+      # tensors depending on which policy produced them, hence #to_i.
       next_actions = if on_policy
         experience[:next_action].map(&:to_i)
+      elsif double_dqn
+        raise ArgumentError, "double_dqn: true requires target:" unless target
+
+        online_next_q_values = Torch.no_grad { forward(experience[:next_state]) }
+        online_next_q_values.argmax(1).to_a
       else
         next_q_values.argmax(1).to_a
       end
 
-      # compute target actions
-      # here we need to create first a tensor of zeros to keep the dimensions and types
-      # of the other tensors.
-      target_actions = Torch.zeros(experience[:action].size)
-      next_actions.zip(experience[:reward], experience[:done]).each_with_index do |(next_action, reward, done), i|
-        target_actions[i] = if done
-          reward
-        else
-          reward + @discount_factor * next_q_values[i][next_action]
-        end
-      end
+      target_values = compute_td_targets(next_q_values, next_actions, experience[:reward], experience[:done])
 
-      # Compute the loss
-      # First, we need to extract the q values for the actions taken_q_values
-      # from the predicted q values. Here we need a Tensor as well to call backward
-      # on loss.
       predicted_q_values = forward(experience[:state])
-      taken_q_values = Torch.zeros(experience[:action].size)
-      taken_q_values.zip(experience[:action]).each_with_index do |(_, action), i|
-        taken_q_values[i] = predicted_q_values[i][action]
-      end
+      taken_q_values = q_values_for_actions(predicted_q_values, experience[:action])
 
-      criterion = Torch::NN::MSELoss.new
+      criterion = Torch::NN::MSELoss.new(reduction: "none")
+      per_sample_loss = criterion.call(taken_q_values, target_values)
+      per_sample_loss *= Torch.tensor(weights, dtype: :float32) if weights
+      loss = per_sample_loss.mean
+      td_errors = (target_values - taken_q_values).detach.to_a
+
       @optimizer.zero_grad
-      # Some debugging. Comment if not needed.
-      # warn "target_actions: #{target_actions.inspect}"
-      # Calculate the loss
-      loss = criterion.call(taken_q_values, Torch::Tensor.new(target_actions))
-      lvalue = loss.item
-      # Log the loss
-      # warn "Loss: #{loss}"
-      # Backpropagate the loss
       loss.backward
-      # Update the weights
       @optimizer.step
-      lvalue
+
+      {loss: loss.item, td_errors: td_errors}
+    end
+
+    # Compute TD targets `reward + discount_factor * Q(next_state,
+    # next_action)`, or just `reward` on terminal transitions.
+    # `next_actions` picks which column of `next_q_values` to bootstrap
+    # from for each sample -- see #update for how that selection differs
+    # between on-policy, Double DQN, and vanilla (Q-learning) targets.
+    def compute_td_targets(next_q_values, next_actions, rewards, dones)
+      targets = Torch.zeros(rewards.size)
+      next_actions.zip(rewards, dones).each_with_index do |(next_action, reward, done), i|
+        targets[i] = done ? reward : reward + @discount_factor * next_q_values[i][next_action]
+      end
+      targets
+    end
+
+    # Gather Q(s, a) for a batch of taken actions from a batch of
+    # per-action Q-value rows.
+    def q_values_for_actions(q_values, actions)
+      indices = actions.is_a?(Torch::Tensor) ? actions : Torch.tensor(actions)
+      q_values.gather(1, indices.long.reshape(-1, 1)).reshape(-1)
     end
 
     def soft_update(q_network, tau)

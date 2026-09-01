@@ -35,7 +35,7 @@ describe Reinforce::Algorithms::SARSA do
     end
     q_model.define_singleton_method(:update) do |_experience, on_policy: false|
       @update_on_policy_values << on_policy
-      0.0
+      {loss: 0.0}
     end
     q_model.define_singleton_method(:save) { |_path| nil }
     q_model.define_singleton_method(:load) { |_path| nil }
@@ -62,7 +62,7 @@ describe Reinforce::Algorithms::SARSA do
     q_model.define_singleton_method(:forward) { |_state| Torch.tensor([1.0, 0.0]) }
     q_model.define_singleton_method(:update) do |_experience, on_policy: false|
       @update_on_policy_values << on_policy
-      0.0
+      {loss: 0.0}
     end
     q_model.define_singleton_method(:save) { |_path| nil }
     q_model.define_singleton_method(:load) { |_path| nil }

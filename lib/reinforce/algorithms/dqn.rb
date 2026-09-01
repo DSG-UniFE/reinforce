@@ -7,30 +7,44 @@ require_relative "../experience"
 require_relative "../categorical_distribution"
 require_relative "../prioritized_experience_replay"
 require_relative "../q_function_ann"
+require_relative "../models/dueling_q_network"
 
 module Reinforce
   module Algorithms
     ##
-    # This class implements a Reinforcement Learning agent that uses the
-    # Deep Q Network algorithm.
+    # Deep Q-Network (Mnih et al., 2015): epsilon-greedy action selection,
+    # a target network for stable bootstrapping, and prioritized experience
+    # replay (Schaul et al., 2015). The actual TD update -- including the
+    # importance-sampling-weighted loss and the target/Double-DQN logic
+    # below -- is delegated to QFunctionANN#update rather than hand-rolled
+    # here; see lib/reinforce/q_function_ann.rb.
+    #
+    # Two well-established, cheap-to-add improvements over vanilla DQN are
+    # available as constructor flags:
+    #
+    # - `double_dqn: true` (Van Hasselt et al., 2015) selects the bootstrap
+    #   action via this network's own argmax but evaluates it using the
+    #   target network, removing the overestimation bias vanilla DQN gets
+    #   from using the same (noisy) estimator for both.
+    # - `dueling: true` (Wang et al., 2016) swaps the Q-network's
+    #   architecture for Reinforce::Models::DuelingQNetwork, which learns a
+    #   state-value stream and an action-advantage stream separately. Only
+    #   takes effect when `q_function_model`/`q_function_model_target`
+    #   aren't supplied explicitly -- if you build your own, pass a
+    #   DuelingQNetwork-based one directly instead.
     class DQN
       include ::Reinforce::Agent
 
       attr_reader :logs
 
-      def initialize(environment, learning_rate = 2.5e-4, discount_factor = 0.99, epsilon = 0.9, q_function_model: nil,
-        q_function_model_target: nil)
+      def initialize(environment, learning_rate = 2.5e-4, discount_factor = 0.99, epsilon = 0.9,
+        q_function_model: nil, q_function_model_target: nil, double_dqn: false, dueling: false)
         @environment = environment
-        @q_function_model = if q_function_model.nil?
-          QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
-        else
-          q_function_model
-        end
-        @q_function_model_target = if q_function_model_target.nil?
-          QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor)
-        else
-          q_function_model_target
-        end
+        @double_dqn = double_dqn
+        @q_function_model = q_function_model ||
+          build_q_function(environment, learning_rate, discount_factor, dueling)
+        @q_function_model_target = q_function_model_target ||
+          build_q_function(environment, learning_rate, discount_factor, dueling)
         # Create prioritized experience replay store
         @prioritized_experience_replay = PrioritizedExperienceReplay.new
         # tau is the Polyak averaging parameter, it should be between 0 and 1
@@ -40,7 +54,6 @@ module Reinforce
         @training_start = 1000
         @update_frequency_for_q = 10
         @update_frequency_for_q_target = 500
-        @optimizer = Torch::Optim::Adam.new(@q_function_model.parameters, lr: 0.001)
         @discount_factor = discount_factor
         @logs = {loss: [], episode_reward: [], episode_length: []}
       end
@@ -54,7 +67,6 @@ module Reinforce
           # Obtain the logits of each action from the model
           logits = @q_function_model.forward(state)
           # Return greedy action from the distribution
-          # CategoricalDistribution.new(logits: logits).greedy
           logits.argmax.to_i
         end
       end
@@ -86,12 +98,8 @@ module Reinforce
 
         # Training loop
         1.upto(total_steps) do
-          # warn "Episode: #{episode_number}"
           progress = global_step.to_f / total_steps * 100
           print "\rTraining: #{progress.round(2)}%" if global_step % 100 == 0
-          # Reset the environment
-
-          # Setup number of actions to take before updating the Q function
 
           # Choose an action, according to epsilon-greedy policy
           action = choose_action(state, epsilon)
@@ -113,38 +121,18 @@ module Reinforce
             # Update Q function every @update_frequency_for_q steps
             if (global_step % @update_frequency_for_q).zero?
               experience = @prioritized_experience_replay.sample(minibatch_size)
-              target = nil
-              Torch.no_grad do
-                next_q_values = @q_function_model_target.architecture.call(
-                  Torch.tensor(experience[:next_state], dtype: :float32)
-                )
-                target = compute_td_targets(next_q_values, experience[:reward], experience[:done])
-              end
-              t_actions = Torch.tensor(experience[:action])
-              old_val = @q_function_model.forward(experience[:state])
-              told_val = q_values_for_actions(old_val, t_actions)
-
-              # Weight each transition's squared error by its importance-
-              # sampling weight to correct for the sampling bias that
-              # PrioritizedExperienceReplay's priority-proportional
-              # sampling introduces (Schaul et al., 2015) -- unweighted
-              # MSE would systematically over-train on the high-priority
-              # transitions it oversamples.
-              weights = Torch.tensor(experience[:weights], dtype: :float32)
-              criterion = Torch::NN::MSELoss.new(reduction: "none")
-              loss = (weights * criterion.call(told_val, target)).mean
-              @logs[:loss] << loss.item
-              # warn "Loss: #{loss.item}"
-              @optimizer.zero_grad
-              loss.backward
-              @optimizer.step
-              # @q_function_model.update(experience)
+              result = @q_function_model.update(
+                experience,
+                target: @q_function_model_target,
+                double_dqn: @double_dqn,
+                weights: experience[:weights]
+              )
+              @logs[:loss] << result[:loss]
 
               # Feed the freshly-observed TD-errors back so future sampling
               # reflects how wrong the Q-function currently is about these
               # transitions.
-              td_errors = (target - told_val).detach.to_a
-              @prioritized_experience_replay.update_priorities(experience[:indices], td_errors)
+              @prioritized_experience_replay.update_priorities(experience[:indices], result[:td_errors])
             end
 
             # Soft-update target Q function every @update_frequency_for_q_target steps
@@ -174,8 +162,7 @@ module Reinforce
         @q_function_model.get_action(state)
       end
 
-      # Save the model after training_start
-
+      # Save the model
       def save(path)
         @q_function_model.save(path)
       end
@@ -185,16 +172,13 @@ module Reinforce
         @q_function_model.load(path)
       end
 
-      def compute_td_targets(next_q_values, rewards, dones)
-        max_next_q_values = Torch.tensor(next_q_values.to_a.map { |row| row.max }, dtype: :float32)
-        rewards_t = Torch.tensor(rewards, dtype: :float32)
-        dones_t = Torch.tensor(dones.map { |done| done ? 1.0 : 0.0 }, dtype: :float32)
-        rewards_t + @discount_factor * max_next_q_values * (1.0 - dones_t)
-      end
+      private
 
-      def q_values_for_actions(q_values, actions)
-        indices = actions.long.reshape(-1, 1)
-        q_values.gather(1, indices).reshape(-1)
+      def build_q_function(environment, learning_rate, discount_factor, dueling)
+        architecture = if dueling
+          ::Reinforce::Models::DuelingQNetwork.new(environment.state_size, environment.actions.size, hidden_size: 512)
+        end
+        QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor, architecture: architecture)
       end
     end
   end

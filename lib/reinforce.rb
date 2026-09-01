@@ -38,8 +38,8 @@ begin
   require_relative "reinforce/algorithms/sac"
   require_relative "reinforce/algorithms/behavior_cloning"
   require_relative "reinforce/algorithms/conservative_q_learning"
-  require_relative "reinforce/models/diffusion_policy"
-  require_relative "reinforce/models/diffusion_score_model"
+  require_relative "reinforce/models/discrete_policy_network"
+  require_relative "reinforce/models/denoising_autoencoder"
   require_relative "reinforce/offline/intrinsic_rewards/score_bonus"
   require_relative "reinforce/algorithms/exdm"
 rescue LoadError => error

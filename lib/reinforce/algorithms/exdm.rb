@@ -3,15 +3,16 @@
 require "torch"
 require_relative "../networks"
 require_relative "sac"
-require_relative "../models/diffusion_policy"
-require_relative "../models/diffusion_score_model"
+require_relative "../models/discrete_policy_network"
+require_relative "../models/denoising_autoencoder"
 require_relative "../offline/intrinsic_rewards/score_bonus"
 
 module Reinforce
   module Algorithms
     # Exploratory Diffusion Model (ExDM) built on top of the SAC core.
-    # ExDM augments rewards with diffusion-score intrinsic bonuses and
-    # delegates actor/critic optimization to SAC.
+    # ExDM augments rewards with denoising-reconstruction intrinsic bonuses
+    # (see Reinforce::Models::DenoisingAutoencoder) and delegates
+    # actor/critic optimization to SAC.
     class ExDM
       include ::Reinforce::Agent
 
@@ -32,12 +33,12 @@ module Reinforce
         @state_size = state_size || flatten_state(@dataset.transitions.first[:state]).size
         @intrinsic_coefficient = intrinsic_coefficient
 
-        @policy_model = policy_model || ::Reinforce::Models::DiffusionPolicy.new(@state_size, @actions, hidden_size:)
+        @policy_model = policy_model || ::Reinforce::Models::DiscretePolicyNetwork.new(@state_size, @actions, hidden_size:)
         q1 = q1_model || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
         q2 = q2_model || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
         q1_target = q1_target_model || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
         q2_target = q2_target_model || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
-        @score_model = score_model || ::Reinforce::Models::DiffusionScoreModel.new(@state_size + @actions.size, hidden_size:)
+        @score_model = score_model || ::Reinforce::Models::DenoisingAutoencoder.new(@state_size + @actions.size, hidden_size:)
 
         @score_optimizer = Torch::Optim::Adam.new(@score_model.parameters, lr: learning_rate)
         @intrinsic_bonus = ::Reinforce::Offline::IntrinsicRewards::ScoreBonus.new(noise_std:)

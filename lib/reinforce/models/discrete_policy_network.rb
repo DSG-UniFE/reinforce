@@ -4,9 +4,11 @@ require "torch"
 
 module Reinforce
   module Models
-    # Minimal diffusion-style policy backbone for discrete actions.
-    # In this first draft, it is an MLP policy used by ExDM updates.
-    class DiffusionPolicy < Torch::NN::Module
+    # A plain softmax MLP policy for discrete actions, used by ExDM's SAC
+    # core. Named DiscretePolicyNetwork, not DiffusionPolicy -- despite the
+    # name it previously had, there was never anything diffusion-related
+    # here (no noise, no timestep conditioning, no iterative sampling).
+    class DiscretePolicyNetwork < Torch::NN::Module
       attr_reader :action_space
 
       def initialize(state_size, action_space, hidden_size: 64)

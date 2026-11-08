@@ -53,6 +53,40 @@ describe Reinforce::Environments::GridWorld do
     expect(done).to be_falsey
   end
 
+  it "uses explicitly given obstacle positions, unchanged across resets" do
+    gridworld.reset
+    gridworld.reset
+
+    expect(gridworld.obstacles).to be == [[1, 1], [2, 2], [3, 3]]
+  end
+
+  describe "with randomly placed obstacles" do
+    let(:random_gridworld) { Reinforce::Environments::GridWorld.new(5, [0, 0], [4, 4], 4) }
+
+    it "keeps the same obstacles across resets" do
+      # Regression: #reset re-randomized the obstacles, but the state is only
+      # the agent's position, so the agent could never see where they were.
+      obstacles = random_gridworld.obstacles.dup
+      3.times { random_gridworld.reset }
+
+      expect(random_gridworld.obstacles).to be == obstacles
+    end
+
+    it "places the requested number of distinct interior obstacles, off start and goal" do
+      20.times do
+        obstacles = Reinforce::Environments::GridWorld.new(5, [0, 0], [4, 4], 4).obstacles
+
+        expect(obstacles.uniq.size).to be == 4
+        expect(obstacles.all? { |row, column| (1..3).cover?(row) && (1..3).cover?(column) }).to be == true
+        expect(obstacles & [[0, 0], [4, 4]]).to be == []
+      end
+    end
+
+    it "refuses more obstacles than there are free interior cells" do
+      expect { Reinforce::Environments::GridWorld.new(4, [0, 0], [3, 3], 5) }.to raise_exception(ArgumentError)
+    end
+  end
+
   it "can be rendered" do
     out = StringIO.new
     gridworld.render(out)

@@ -5,25 +5,32 @@
 
 module Reinforce
   module Environments
+    # A size x size grid: move from `start` to `goal`, avoiding obstacles.
+    #
+    # The obstacles are fixed for the lifetime of the environment. The state
+    # is only the agent's position, so obstacles that moved on every #reset
+    # (as they used to) were invisible to the agent: a deterministic policy
+    # could push into one forever, and only a sampled policy could get
+    # around it. Create a new GridWorld for a different layout.
     class GridWorld
       include ::Reinforce::Environment
 
       ACTIONS = %i[up down left right].freeze
-      attr_reader :state
-      # srand(0)
+      attr_reader :state, :obstacles
 
-      def initialize(size, start, goal, obstacles_num = 5)
+      # @parameter obstacles [Integer, Array] either how many obstacles to
+      #   place at random, distinct interior cells (never on `start` or
+      #   `goal`), chosen once here; or an explicit Array of [row, column]
+      #   obstacle positions.
+      def initialize(size, start, goal, obstacles = 5)
         @size = size
         @start = start
         @goal = goal
-        @obstacles_num = obstacles_num
-        # TODO: Check if we can remove the following line
-        @obstacles = Array.new(@obstacles_num) { |_| [1 + rand(@size - 2), 1 + rand(@size - 2)] }
+        @obstacles = obstacles.is_a?(Array) ? obstacles.map(&:dup) : random_obstacles(obstacles)
         @state = @start.dup
       end
 
       def reset
-        @obstacles = Array.new(@obstacles_num) { |_| [1 + rand(@size - 2), 1 + rand(@size - 2)] }
         @state = @start.dup
       end
 
@@ -96,6 +103,18 @@ module Reinforce
           output_stream.puts line
         end
         output_stream.puts ""
+      end
+
+      private
+
+      # Interior cells only (not on the grid's border), as before: with
+      # start and goal on the border, the border stays a free path between
+      # them however the obstacles fall.
+      def random_obstacles(count)
+        interior = (1..(@size - 2)).to_a.product((1..(@size - 2)).to_a) - [@start, @goal]
+        raise ArgumentError, "cannot place #{count} obstacles in #{interior.size} free interior cells" if count > interior.size
+
+        interior.sample(count)
       end
     end
   end

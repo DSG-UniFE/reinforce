@@ -104,18 +104,13 @@ describe "integration learning smoke tests" do
     Torch::NN::Init.constant!(policy.weight, 0.0)
     Torch::NN::Init.constant!(policy.bias, 0.0)
     optimizer = Torch::Optim::SGD.new(policy.parameters, lr: 0.05)
-    agent = Reinforce::Algorithms::MonteCarloPolicyGradient.new(1, 2, 0.99, policy, optimizer)
+    agent = Reinforce::Algorithms::MonteCarloPolicyGradient.new(env, policy, optimizer)
 
     state = Torch.tensor([0.0], dtype: :float32)
     before_logits = Torch.no_grad { policy.call(state) }.to_a
     before_gap = before_logits[1] - before_logits[0]
 
-    300.times do
-      action = agent.choose_action(env.reset)
-      _next_state, reward, _done = env.step(action)
-      agent.get_reward(reward)
-      agent.update_policy
-    end
+    agent.train(episodes: 300, steps_per_episode: 1)
 
     after_logits = Torch.no_grad { policy.call(state) }.to_a
     after_gap = after_logits[1] - after_logits[0]

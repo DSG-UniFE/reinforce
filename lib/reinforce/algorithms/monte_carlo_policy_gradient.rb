@@ -18,18 +18,59 @@ module Reinforce
     class MonteCarloPolicyGradient
       include ::Reinforce::Agent
 
-      # @parameter actions [Array, nil] the environment's `actions`, which
-      #   #predict returns elements of. Defaults to the indices
-      #   `0...num_actions`, which every environment's #step also accepts.
-      def initialize(num_states, num_actions, discount_factor, model, optimizer, actions: nil)
-        @num_states = num_states
-        @num_actions = num_actions
-        @actions = actions || (0...num_actions).to_a
-        @discount_factor = discount_factor
+      # Keeps return normalization finite when every return in an episode
+      # is identical (zero standard deviation).
+      RETURN_NORMALIZATION_EPSILON = 1e-8
+
+      attr_reader :logs
+
+      # @parameter environment [Reinforce::Environment] the environment to
+      #   train on; #predict returns elements of its `actions`.
+      # @parameter model [Torch::NN::Module] the policy network, mapping a
+      #   state to one logit per action. Must be a real Torch::NN::Module
+      #   (not just something with #forward), since #save/#load go through
+      #   its #state_dict.
+      # @parameter optimizer [Torch::Optim::Optimizer] built over
+      #   `model.parameters`.
+      # @parameter normalize_returns [Boolean] standardize each episode's
+      #   returns before the update (see #normalize). Skipped for single-step
+      #   episodes, whose one return would always normalize to zero and
+      #   leave nothing to learn from.
+      def initialize(environment, model, optimizer, discount_factor: 0.99, normalize_returns: true)
+        @environment = environment
+        @actions = environment.actions
         @model = model
         @optimizer = optimizer
+        @discount_factor = discount_factor
+        @normalize_returns = normalize_returns
         @log_probs = []
         @rewards = []
+        @logs = {loss: [], episode_reward: [], episode_length: []}
+      end
+
+      # Train for `episodes` episodes of at most `steps_per_episode` steps
+      # each, updating the policy once at the end of every episode (REINFORCE
+      # needs the complete episode return before it can update). Same
+      # signature as the other online algorithms (see Reinforce::Agent).
+      def train(episodes:, steps_per_episode:, **_kwargs)
+        episodes.times do
+          state = @environment.reset
+          episode_reward = 0.0
+          episode_length = 0
+
+          steps_per_episode.times do
+            action = choose_action(state)
+            state, reward, done = @environment.step(action)
+            get_reward(reward)
+            episode_reward += reward
+            episode_length += 1
+            break if done
+          end
+
+          @logs[:loss] << update_policy.item unless @log_probs.empty?
+          @logs[:episode_reward] << episode_reward
+          @logs[:episode_length] << episode_length
+        end
       end
 
       def reset
@@ -43,7 +84,7 @@ module Reinforce
       # evaluating the policy must not leak extra entries into it.
       #
       # @parameter deterministic [Boolean] greedy if true, sampled if false.
-      # @returns [Object] an element of `actions` (see #initialize).
+      # @returns [Object] an element of the environment's `actions`.
       def predict(state, deterministic: true)
         logits = Torch.no_grad { @model.forward(as_tensor(state)) }
         @actions[CategoricalDistribution.new(logits: logits).choose(deterministic: deterministic)]
@@ -71,13 +112,13 @@ module Reinforce
       # episode buffers (REINFORCE is on-policy: these samples can't be
       # reused once the policy that produced them has changed).
       def update_policy
-        discounted_rewards = calculate_discounted_rewards(@rewards)
-        rewards = Torch::Tensor.new(discounted_rewards)
+        returns = Torch.tensor(calculate_discounted_rewards(@rewards), dtype: :float32)
+        returns = normalize(returns) if @normalize_returns && returns.size(0) > 1
         # Torch.stack, not Torch::Tensor.new: building a fresh tensor from the
         # recorded log-probabilities would copy their values but drop their
         # autograd history, so no gradient could ever reach @model.
         log_probs = Torch.stack(@log_probs)
-        loss = Torch.sum(-log_probs * rewards)
+        loss = Torch.sum(-log_probs * returns)
         @optimizer.zero_grad
         loss.backward
         @optimizer.step
@@ -85,20 +126,37 @@ module Reinforce
         loss
       end
 
-      # save the model at a given path
+      # Save the policy network's weights, via its state_dict like every
+      # other algorithm here. The previous `@model.save(path)` only worked for
+      # a model class that happened to define its own #save, which neither
+      # Torch::NN::Module nor the example's policy did.
       def save(path)
-        @model.save(path)
+        Torch.save(@model.state_dict, path)
       end
 
-      # load the model at the given path
+      # Load weights saved by #save into the (identically shaped) policy
+      # network, and switch it to evaluation mode, matching PPO/QFunctionANN.
       def load(path)
-        @model.load(path)
+        @model.load_state_dict(Torch.load(path))
+        @model.eval
       end
 
       private
 
       def as_tensor(state)
         state.is_a?(Torch::Tensor) ? state : Torch.tensor(state, dtype: :float32)
+      end
+
+      # Standardize an episode's returns to zero mean and unit variance. The
+      # mean acts as a simple baseline (actions are reinforced for doing
+      # better than this episode's average, not just for any positive
+      # return), and dividing by the standard deviation makes the update
+      # size independent of the reward scale. Without it, environments whose
+      # returns run into the thousands (GridWorld's per-step distance
+      # penalty) produce updates large enough to collapse the policy onto
+      # one fixed action sequence.
+      def normalize(returns)
+        (returns - returns.mean) / (returns.std + RETURN_NORMALIZATION_EPSILON)
       end
 
       def calculate_discounted_rewards(rewards)

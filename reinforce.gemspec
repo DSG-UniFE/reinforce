@@ -22,5 +22,5 @@ Gem::Specification.new do |spec|
 
   spec.required_ruby_version = ">= 3.0"
 
-  spec.add_dependency "torch-rb", ">= 0.2.5"
+  spec.add_dependency "torch-rb", ">= 0.27.0"
 end

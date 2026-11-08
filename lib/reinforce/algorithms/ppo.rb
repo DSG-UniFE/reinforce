@@ -2,6 +2,7 @@
 
 require_relative "../experience"
 require_relative "../categorical_distribution"
+require_relative "../networks"
 require "torch"
 
 module Reinforce
@@ -13,30 +14,24 @@ module Reinforce
     # `Reinforce::Agent` contract module for any unqualified
     # `Reinforce::Agent` reference written elsewhere in this namespace.
     class ActorCriticNetwork < Torch::NN::Module
+      # cleanrl-style PPO defaults: Tanh (not Reinforce::Networks::Config's
+      # usual ReLU) is the standard activation for PPO's actor/critic MLPs.
+      DEFAULT_NETWORK_CONFIG = Reinforce::Networks::Config.new(activation: Torch::NN::Tanh)
+
       attr_reader :policy_model, :value_model
 
-      def initialize(state_size, num_actions, policy_model = nil, value_model = nil)
+      def initialize(state_size, num_actions, policy_model = nil, value_model = nil,
+        network_config: DEFAULT_NETWORK_CONFIG)
         super()
         if policy_model.nil? || value_model.nil?
-          @policy_model = Torch::NN::Sequential.new(
-            layer_init(Torch::NN::Linear.new(state_size, 64)),
-            Torch::NN::Tanh.new,
-            layer_init(Torch::NN::Linear.new(64, 64)),
-            Torch::NN::Tanh.new,
-            layer_init(Torch::NN::Linear.new(64, num_actions), 0.01)
-          )
-          @value_model = Torch::NN::Sequential.new(
-            layer_init(Torch::NN::Linear.new(state_size, 64)),
-            Torch::NN::Tanh.new,
-            layer_init(Torch::NN::Linear.new(64, 64)),
-            Torch::NN::Tanh.new,
-            layer_init(Torch::NN::Linear.new(64, 1), 1.0)
-          )
+          @policy_model = build_head(state_size, num_actions, network_config, output_std: 0.01)
+          @value_model = build_head(state_size, 1, network_config, output_std: 1.0)
         else
           @policy_model = policy_model
           @value_model = value_model
         end
         [@policy_model, @value_model].each(&:train)
+        to(Reinforce::Device.resolve(network_config.device))
       end
 
       # from cleanrl
@@ -60,6 +55,27 @@ module Reinforce
         entropy = pd.entropy
         [action, logprob, entropy, value]
       end
+
+      private
+
+      # Builds one Reinforce::Networks-shaped MLP head with cleanrl's
+      # per-layer orthogonal initialization: std = sqrt(2) (the
+      # near-standard gain for Tanh/ReLU hidden layers) on every hidden
+      # layer, and a much smaller `output_std` on the final layer --
+      # 0.01 for the policy head keeps the initial action distribution
+      # close to uniform, 1.0 for the value head keeps early value
+      # estimates from being either saturated or absurdly large. Losing
+      # this scheme would genuinely hurt PPO's early training stability,
+      # so it's preserved exactly even though the hidden layers themselves
+      # now come from the shared Reinforce::Networks primitive.
+      def build_head(input_size, output_size, network_config, output_std:)
+        layers, trunk_output_size = Reinforce::Networks.build_hidden_layers(
+          input_size, network_config.hidden_size, network_config.hidden_layers, network_config.activation
+        )
+        layers.each { |layer| layer_init(layer) if layer.is_a?(Torch::NN::Linear) }
+        layers << layer_init(Torch::NN::Linear.new(trunk_output_size, output_size), output_std)
+        Torch::NN::Sequential.new(*layers)
+      end
     end
 
     class PPO
@@ -68,9 +84,12 @@ module Reinforce
       attr_reader :logs
       attr_accessor :agent, :optimizer
 
-      def initialize(environment, learning_rate, policy = nil, value = nil, clip_param = 0.2, ppo_epochs = 10, minibatch_size = 32, discount_factor = 0.99)
+      def initialize(environment, learning_rate, policy = nil, value = nil, clip_param = 0.2, ppo_epochs = 10, minibatch_size = 32, discount_factor = 0.99,
+        network_config: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG)
         @environment = environment
-        @agent = ActorCriticNetwork.new(environment.state_size, environment.actions.size, policy, value)
+        @agent = ActorCriticNetwork.new(
+          environment.state_size, environment.actions.size, policy, value, network_config: network_config
+        )
         @gaelam = 0.97
         @clip_param = clip_param
         @ppo_epochs = ppo_epochs

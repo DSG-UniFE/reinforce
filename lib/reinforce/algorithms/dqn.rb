@@ -7,6 +7,7 @@ require_relative "../experience"
 require_relative "../categorical_distribution"
 require_relative "../prioritized_experience_replay"
 require_relative "../q_function_ann"
+require_relative "../networks"
 require_relative "../models/dueling_q_network"
 
 module Reinforce
@@ -32,19 +33,26 @@ module Reinforce
     #   takes effect when `q_function_model`/`q_function_model_target`
     #   aren't supplied explicitly -- if you build your own, pass a
     #   DuelingQNetwork-based one directly instead.
+    #
+    # `network_config:` (a Reinforce::Networks::Config) controls the
+    # default Q-network's shape -- hidden layer width/count/activation --
+    # for either architecture, again only when
+    # `q_function_model`/`q_function_model_target` aren't supplied
+    # explicitly.
     class DQN
       include ::Reinforce::Agent
 
       attr_reader :logs
 
       def initialize(environment, learning_rate = 2.5e-4, discount_factor = 0.99, epsilon = 0.9,
-        q_function_model: nil, q_function_model_target: nil, double_dqn: false, dueling: false)
+        q_function_model: nil, q_function_model_target: nil, double_dqn: false, dueling: false,
+        network_config: Reinforce::Networks::Config.new)
         @environment = environment
         @double_dqn = double_dqn
         @q_function_model = q_function_model ||
-          build_q_function(environment, learning_rate, discount_factor, dueling)
+          build_q_function(environment, learning_rate, discount_factor, dueling, network_config)
         @q_function_model_target = q_function_model_target ||
-          build_q_function(environment, learning_rate, discount_factor, dueling)
+          build_q_function(environment, learning_rate, discount_factor, dueling, network_config)
         # Create prioritized experience replay store
         @prioritized_experience_replay = PrioritizedExperienceReplay.new
         # tau is the Polyak averaging parameter, it should be between 0 and 1
@@ -174,11 +182,16 @@ module Reinforce
 
       private
 
-      def build_q_function(environment, learning_rate, discount_factor, dueling)
+      def build_q_function(environment, learning_rate, discount_factor, dueling, network_config)
         architecture = if dueling
-          ::Reinforce::Models::DuelingQNetwork.new(environment.state_size, environment.actions.size, hidden_size: 512)
+          ::Reinforce::Models::DuelingQNetwork.new(
+            environment.state_size, environment.actions.size, network_config: network_config
+          )
         end
-        QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate, discount_factor, architecture: architecture)
+        QFunctionANN.new(
+          environment.state_size, environment.actions.size, learning_rate, discount_factor,
+          architecture: architecture, network_config: network_config
+        )
       end
     end
   end

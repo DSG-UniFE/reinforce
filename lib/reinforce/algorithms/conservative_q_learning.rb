@@ -12,7 +12,7 @@ module Reinforce
       attr_reader :q_network, :q_target_network, :actions, :logs
 
       def initialize(dataset, action_space: nil, learning_rate: 1e-3, discount_factor: 0.99, alpha: 0.1,
-        hidden_size: 64, q_network: nil, q_target_network: nil)
+        network_config: ::Reinforce::Networks::Config.new, q_network: nil, q_target_network: nil)
         @dataset = dataset
         raise ArgumentError, "dataset cannot be empty" if @dataset.empty?
 
@@ -24,8 +24,8 @@ module Reinforce
         @discount_factor = discount_factor
         @alpha = alpha
 
-        @q_network = q_network || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
-        @q_target_network = q_target_network || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
+        @q_network = q_network || network_config.build(@state_size, @actions.size)
+        @q_target_network = q_target_network || network_config.build(@state_size, @actions.size)
         @q_target_network.load_state_dict(@q_network.state_dict)
         @q_network.train
         @q_target_network.train

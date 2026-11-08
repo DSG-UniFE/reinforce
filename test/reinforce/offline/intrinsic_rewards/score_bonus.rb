@@ -3,11 +3,12 @@
 require_relative "../../../support/torch_test_helpers"
 require "reinforce/models/denoising_autoencoder"
 require "reinforce/offline/intrinsic_rewards/score_bonus"
+require "reinforce/networks"
 
 describe Reinforce::Offline::IntrinsicRewards::ScoreBonus do
   it "returns one finite novelty score for each state-action vector" do
     TorchTestHelpers.with_torch_seed do
-      model = Reinforce::Models::DenoisingAutoencoder.new(3, hidden_size: 8)
+      model = Reinforce::Models::DenoisingAutoencoder.new(3, network_config: Reinforce::Networks::Config.new(hidden_size: 8))
       state_actions = Torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 1.0]], dtype: :float32)
 
       scores = Reinforce::Offline::IntrinsicRewards::ScoreBonus.new(noise_std: 0.05).call(model, state_actions)

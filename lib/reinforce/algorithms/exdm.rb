@@ -19,7 +19,7 @@ module Reinforce
       attr_reader :policy_model, :q_network, :q_target_network, :score_model, :logs, :sac
 
       def initialize(dataset = nil, action_space: nil, state_size: nil, learning_rate: 3e-4, discount_factor: 0.99,
-        entropy_coefficient: 0.1, intrinsic_coefficient: 0.1, hidden_size: 64, noise_std: 0.1,
+        entropy_coefficient: 0.1, intrinsic_coefficient: 0.1, network_config: ::Reinforce::Networks::Config.new, noise_std: 0.1,
         policy_model: nil, q1_model: nil, q2_model: nil, q1_target_model: nil, q2_target_model: nil, score_model: nil)
         @dataset = dataset
         if @dataset.nil? && (action_space.nil? || state_size.nil?)
@@ -33,12 +33,12 @@ module Reinforce
         @state_size = state_size || flatten_state(@dataset.transitions.first[:state]).size
         @intrinsic_coefficient = intrinsic_coefficient
 
-        @policy_model = policy_model || ::Reinforce::Models::DiscretePolicyNetwork.new(@state_size, @actions, hidden_size:)
-        q1 = q1_model || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
-        q2 = q2_model || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
-        q1_target = q1_target_model || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
-        q2_target = q2_target_model || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
-        @score_model = score_model || ::Reinforce::Models::DenoisingAutoencoder.new(@state_size + @actions.size, hidden_size:)
+        @policy_model = policy_model || ::Reinforce::Models::DiscretePolicyNetwork.new(@state_size, @actions, network_config:)
+        q1 = q1_model || network_config.build(@state_size, @actions.size)
+        q2 = q2_model || network_config.build(@state_size, @actions.size)
+        q1_target = q1_target_model || network_config.build(@state_size, @actions.size)
+        q2_target = q2_target_model || network_config.build(@state_size, @actions.size)
+        @score_model = score_model || ::Reinforce::Models::DenoisingAutoencoder.new(@state_size + @actions.size, network_config:)
 
         @score_optimizer = Torch::Optim::Adam.new(@score_model.parameters, lr: learning_rate)
         @intrinsic_bonus = ::Reinforce::Offline::IntrinsicRewards::ScoreBonus.new(noise_std:)

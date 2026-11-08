@@ -11,7 +11,8 @@ module Reinforce
 
       attr_reader :policy_model, :logs, :actions
 
-      def initialize(dataset, action_space: nil, learning_rate: 1e-3, hidden_size: 64, policy_model: nil)
+      def initialize(dataset, action_space: nil, learning_rate: 1e-3,
+        network_config: ::Reinforce::Networks::Config.new, policy_model: nil)
         @dataset = dataset
         raise ArgumentError, "dataset cannot be empty" if @dataset.empty?
 
@@ -20,7 +21,7 @@ module Reinforce
         @actions.each_with_index { |action, index| @action_to_index[action] = index }
 
         @state_size = flatten_state(@dataset.transitions.first[:state]).size
-        @policy_model = policy_model || ::Reinforce::Networks.mlp(@state_size, @actions.size, hidden_size: hidden_size)
+        @policy_model = policy_model || network_config.build(@state_size, @actions.size)
         @policy_model.train
         @optimizer = Torch::Optim::Adam.new(@policy_model.parameters, lr: learning_rate)
         @criterion = Torch::NN::CrossEntropyLoss.new

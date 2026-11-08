@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
 require "reinforce/models/discrete_policy_network"
+require "reinforce/networks"
 
 describe Reinforce::Models::DiscretePolicyNetwork do
   it "produces logits/probabilities with expected shapes and valid actions" do
-    policy = Reinforce::Models::DiscretePolicyNetwork.new(2, %i[left right], hidden_size: 16)
+    policy = Reinforce::Models::DiscretePolicyNetwork.new(2, %i[left right], network_config: Reinforce::Networks::Config.new(hidden_size: 16))
     states = Torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype: :float32)
 
     logits = policy.forward(states)

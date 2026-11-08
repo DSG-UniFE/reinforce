@@ -1,16 +1,18 @@
 # frozen_string_literal: true
 
 require "torch"
+require_relative "../networks"
 
 module Reinforce
   module Models
     # Dueling network head (Wang et al., 2016): splits Q(s, a) into a
     # state-value stream V(s) and an action-advantage stream A(s, a),
-    # sharing a common feature trunk, then recombines them as
-    # Q(s, a) = V(s) + (A(s, a) - mean_a A(s, a)). Subtracting the mean
-    # advantage keeps V and A identifiable (otherwise a constant could
-    # shift freely between the two streams and still produce the same
-    # Q(s, a), which would make the two streams meaningless on their own).
+    # sharing a common feature trunk (Reinforce::Networks.trunk), then
+    # recombines them as Q(s, a) = V(s) + (A(s, a) - mean_a A(s, a)).
+    # Subtracting the mean advantage keeps V and A identifiable (otherwise
+    # a constant could shift freely between the two streams and still
+    # produce the same Q(s, a), which would make the two streams
+    # meaningless on their own).
     #
     # The point of separating them: in states where the choice of action
     # barely matters, V(s) alone can be learned well without having to
@@ -22,16 +24,15 @@ module Reinforce
     # the same #forward(state) -> Q-values-per-action interface, so no
     # other code needs to know a network is dueling versus a plain MLP.
     class DuelingQNetwork < Torch::NN::Module
-      def initialize(input_size, num_actions, hidden_size: 512)
+      def initialize(input_size, num_actions, network_config: Reinforce::Networks::Config.new)
         super()
-        @shared = Torch::NN::Sequential.new(
-          Torch::NN::Linear.new(input_size, hidden_size),
-          Torch::NN::ReLU.new,
-          Torch::NN::Linear.new(hidden_size, hidden_size),
-          Torch::NN::ReLU.new
+        layers, trunk_output_size = Reinforce::Networks.build_hidden_layers(
+          input_size, network_config.hidden_size, network_config.hidden_layers, network_config.activation
         )
-        @value_head = Torch::NN::Linear.new(hidden_size, 1)
-        @advantage_head = Torch::NN::Linear.new(hidden_size, num_actions)
+        @shared = Torch::NN::Sequential.new(*layers)
+        @value_head = Torch::NN::Linear.new(trunk_output_size, 1)
+        @advantage_head = Torch::NN::Linear.new(trunk_output_size, num_actions)
+        to(Reinforce::Device.resolve(network_config.device))
       end
 
       def forward(state)

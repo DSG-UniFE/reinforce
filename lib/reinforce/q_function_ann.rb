@@ -17,12 +17,20 @@ module Reinforce
     def_delegators :@architecture, :apply, :parameters, :state_dict, :load_state_dict
     attr_reader :optimizer, :architecture
 
-    def initialize(state_size, num_actions, learning_rate, discount_factor, architecture: nil)
+    # @parameter network_config [Reinforce::Networks::Config] also controls
+    #   which device this Q-function's network (and every tensor #update
+    #   builds while training it) lives on -- see network_config.device.
+    #   Applies even when `architecture:` is supplied directly (it gets
+    #   moved to the resolved device too), so the caller-supplied network
+    #   and the tensors #update builds are always guaranteed consistent.
+    def initialize(state_size, num_actions, learning_rate, discount_factor,
+      architecture: nil, network_config: Reinforce::Networks::Config.new)
       @num_actions = num_actions
-      # 512-wide, 2 hidden layers: this default predates Reinforce::Networks
-      # and is kept as-is so existing callers/examples that rely on it are
-      # unaffected; everywhere else in the library defaults to hidden_size: 64.
-      @architecture = architecture || Reinforce::Networks.mlp(state_size, num_actions, hidden_size: 512)
+      @device = Reinforce::Device.resolve(network_config.device)
+      # `network_config:`'s shape fields only matter when `architecture:`
+      # isn't given -- if you supply your own architecture, you own its
+      # shape entirely. Its device does apply either way (see above).
+      @architecture = (architecture || network_config.build(state_size, num_actions)).to(@device)
       @architecture.train # Enable training mode
       # Create the optimizer
       @optimizer = Torch::Optim::Adam.new(@architecture.parameters, lr: learning_rate)
@@ -30,21 +38,11 @@ module Reinforce
     end
 
     def forward(state)
-      argument = if state.is_a?(Torch::Tensor)
-        state
-      else
-        Torch::Tensor.new(state)
-      end
-      @architecture.forward(argument)
+      @architecture.forward(as_tensor(state))
     end
 
     def get_action(state)
-      argument = if state.is_a?(Torch::Tensor)
-        state
-      else
-        Torch::Tensor.new(state)
-      end
-      logits = Torch.no_grad { forward(argument) }
+      logits = Torch.no_grad { forward(as_tensor(state)) }
       CategoricalDistribution.new(logits: logits).sample
     end
 
@@ -110,7 +108,7 @@ module Reinforce
 
       criterion = Torch::NN::MSELoss.new(reduction: "none")
       per_sample_loss = criterion.call(taken_q_values, target_values)
-      per_sample_loss *= Torch.tensor(weights, dtype: :float32) if weights
+      per_sample_loss *= Torch.tensor(weights, dtype: :float32, device: @device) if weights
       loss = per_sample_loss.mean
       td_errors = (target_values - taken_q_values).detach.to_a
 
@@ -127,7 +125,7 @@ module Reinforce
     # from for each sample -- see #update for how that selection differs
     # between on-policy, Double DQN, and vanilla (Q-learning) targets.
     def compute_td_targets(next_q_values, next_actions, rewards, dones)
-      targets = Torch.zeros(rewards.size)
+      targets = Torch.zeros(rewards.size, device: @device)
       next_actions.zip(rewards, dones).each_with_index do |(next_action, reward, done), i|
         targets[i] = done ? reward : reward + @discount_factor * next_q_values[i][next_action]
       end
@@ -137,7 +135,7 @@ module Reinforce
     # Gather Q(s, a) for a batch of taken actions from a batch of
     # per-action Q-value rows.
     def q_values_for_actions(q_values, actions)
-      indices = actions.is_a?(Torch::Tensor) ? actions : Torch.tensor(actions)
+      indices = actions.is_a?(Torch::Tensor) ? actions.to(@device) : Torch.tensor(actions, device: @device)
       q_values.gather(1, indices.long.reshape(-1, 1)).reshape(-1)
     end
 
@@ -156,6 +154,17 @@ module Reinforce
     def load(path)
       @architecture.load_state_dict(Torch.load(path))
       @architecture.eval
+    end
+
+    private
+
+    # Converts a state to a Tensor on this Q-function's device -- states
+    # arrive as plain Ruby Arrays from every environment/replay buffer in
+    # this library, but may occasionally already be a Tensor (e.g. a
+    # caller re-forwarding one), possibly on a different device (e.g. a
+    # target: network passed a batch built by its online counterpart).
+    def as_tensor(state)
+      state.is_a?(Torch::Tensor) ? state.to(@device) : Torch.tensor(state, dtype: :float32, device: @device)
     end
   end
 end

@@ -3,6 +3,7 @@
 require_relative "../../support/torch_test_helpers"
 require "reinforce/offline_dataset"
 require "reinforce/algorithms/exdm"
+require "reinforce/networks"
 
 describe Reinforce::Algorithms::ExDM do
   it "trains on offline data and shifts policy toward higher reward action" do
@@ -20,7 +21,7 @@ describe Reinforce::Algorithms::ExDM do
         discount_factor: 0.95,
         entropy_coefficient: 0.05,
         intrinsic_coefficient: 0.05,
-        hidden_size: 32
+        network_config: Reinforce::Networks::Config.new(hidden_size: 32)
       )
 
       before_action = exdm.predict([0.0])

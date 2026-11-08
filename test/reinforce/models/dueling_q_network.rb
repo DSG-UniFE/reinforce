@@ -1,10 +1,13 @@
 # frozen_string_literal: true
 
 require "reinforce/models/dueling_q_network"
+require "reinforce/networks"
 
 describe Reinforce::Models::DuelingQNetwork do
+  let(:small_config) { Reinforce::Networks::Config.new(hidden_size: 8) }
+
   it "produces one Q-value per action with the expected batch shape" do
-    network = Reinforce::Models::DuelingQNetwork.new(3, 4, hidden_size: 8)
+    network = Reinforce::Models::DuelingQNetwork.new(3, 4, network_config: small_config)
     states = Torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 1.0]], dtype: :float32)
 
     q_values = network.forward(states)
@@ -18,7 +21,7 @@ describe Reinforce::Models::DuelingQNetwork do
     # for why). A direct consequence: averaging Q(s, ·) across actions for
     # a given state must recover V(s) exactly, since the advantage terms
     # cancel out by construction.
-    network = Reinforce::Models::DuelingQNetwork.new(2, 3, hidden_size: 8)
+    network = Reinforce::Models::DuelingQNetwork.new(2, 3, network_config: small_config)
     state = Torch.tensor([[0.5, -0.5]], dtype: :float32)
 
     q_values = Torch.no_grad { network.forward(state) }
@@ -35,10 +38,25 @@ describe Reinforce::Models::DuelingQNetwork do
     # unbatched state ([num_actions], no leading batch dim) rather than a
     # minibatch -- raising "Dimension out of range" the first time a
     # DuelingQNetwork-backed DQN tried to act, not just when training.
-    network = Reinforce::Models::DuelingQNetwork.new(3, 4, hidden_size: 8)
+    network = Reinforce::Models::DuelingQNetwork.new(3, 4, network_config: small_config)
 
     q_values = network.forward(Torch.tensor([0.0, 1.0, 0.0], dtype: :float32))
 
     expect(q_values.size.to_a).to be == [4]
+  end
+
+  it "reshapes its trunk from network_config: instead of a fixed depth/width" do
+    default_network = Reinforce::Models::DuelingQNetwork.new(3, 4)
+    deep_network = Reinforce::Models::DuelingQNetwork.new(
+      3, 4, network_config: Reinforce::Networks::Config.new(hidden_size: [16, 8, 4])
+    )
+
+    # Default: 2 hidden layers (Reinforce::Networks::Config's default) in
+    # @shared, plus the value and advantage heads -- 2*2 + 2*2 = 8
+    # parameter tensors (weight + bias per Linear).
+    expect(default_network.parameters.size).to be == 8
+    # Deep: 3 hidden layers instead of 2, so 2 more Linear layers than
+    # default -- 3*2 + 2*2 = 10.
+    expect(deep_network.parameters.size).to be == 10
   end
 end

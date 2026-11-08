@@ -4,8 +4,19 @@ require_relative "../../support/torch_test_helpers"
 require "reinforce/offline_dataset"
 require "reinforce/algorithms/exdm"
 require "reinforce/networks"
+require_relative "../../support/agent_contract"
 
 describe Reinforce::Algorithms::ExDM do
+  include_context AgentContract,
+    factory: -> {
+      dataset = Reinforce::OfflineDataset.new
+      dataset.add(state: [0.0], action: :left, reward: 0.0, next_state: [0.0], done: true)
+      dataset.add(state: [0.0], action: :right, reward: 1.0, next_state: [0.0], done: true)
+      Reinforce::Algorithms::ExDM.new(dataset, action_space: %i[left right])
+    },
+    state: [0.0],
+    actions: %i[left right]
+
   it "trains on offline data and shifts policy toward higher reward action" do
     TorchTestHelpers.with_torch_seed do
       dataset = Reinforce::OfflineDataset.new

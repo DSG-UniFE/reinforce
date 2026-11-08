@@ -5,6 +5,7 @@
 
 require "reinforce/algorithms/monte_carlo_policy_gradient"
 require_relative "../../support/torch_test_helpers"
+require_relative "../../support/agent_contract"
 
 describe Reinforce::Algorithms::MonteCarloPolicyGradient do
   let(:num_states) { 4 }
@@ -13,6 +14,14 @@ describe Reinforce::Algorithms::MonteCarloPolicyGradient do
   let(:model) { Object.new }
   let(:optimizer) { Object.new }
   let(:agent) { Reinforce::Algorithms::MonteCarloPolicyGradient.new(num_states, num_actions, discount_factor, model, optimizer) }
+
+  include_context AgentContract,
+    factory: -> {
+      policy = Torch::NN::Linear.new(2, 3)
+      Reinforce::Algorithms::MonteCarloPolicyGradient.new(2, 3, 0.99, policy, Torch::Optim::SGD.new(policy.parameters, lr: 0.1), actions: %i[a b c])
+    },
+    state: [0.5, -0.5],
+    actions: %i[a b c]
 
   it "can be instantiated" do
     expect(agent).not.to be_nil

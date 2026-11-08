@@ -51,7 +51,7 @@ state = environment.reset
 moves = 0
 max_actions_per_episode.times do
   action = agent.predict(state)
-  state, _, done = environment.step(action.to_i)
+  state, _, done = environment.step(action)
   moves += 1
   environment.render($stdout)
   if done

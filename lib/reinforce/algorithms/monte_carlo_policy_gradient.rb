@@ -18,9 +18,13 @@ module Reinforce
     class MonteCarloPolicyGradient
       include ::Reinforce::Agent
 
-      def initialize(num_states, num_actions, discount_factor, model, optimizer)
+      # @parameter actions [Array, nil] the environment's `actions`, which
+      #   #predict returns elements of. Defaults to the indices
+      #   `0...num_actions`, which every environment's #step also accepts.
+      def initialize(num_states, num_actions, discount_factor, model, optimizer, actions: nil)
         @num_states = num_states
         @num_actions = num_actions
+        @actions = actions || (0...num_actions).to_a
         @discount_factor = discount_factor
         @model = model
         @optimizer = optimizer
@@ -33,15 +37,16 @@ module Reinforce
         @rewards = []
       end
 
-      # Sample an action from the learned (stochastic) policy, for evaluation.
-      # Unlike #choose_action, this records nothing: @log_probs/@rewards are
-      # the training buffer for the episode currently being learned from, and
+      # Pick an action from the learned policy, for evaluation. Unlike
+      # #choose_action, this records nothing: @log_probs/@rewards are the
+      # training buffer for the episode currently being learned from, and
       # evaluating the policy must not leak extra entries into it.
       #
-      # @returns [Integer] an action index.
-      def predict(state)
+      # @parameter deterministic [Boolean] greedy if true, sampled if false.
+      # @returns [Object] an element of `actions` (see #initialize).
+      def predict(state, deterministic: true)
         logits = Torch.no_grad { @model.forward(as_tensor(state)) }
-        CategoricalDistribution.new(logits: logits).sample.item
+        @actions[CategoricalDistribution.new(logits: logits).choose(deterministic: deterministic)]
       end
 
       # Sample an action during training, recording its log-probability

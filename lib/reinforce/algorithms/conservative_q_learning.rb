@@ -66,9 +66,9 @@ module Reinforce
         self
       end
 
-      def predict(state)
-        values = q_values_for_state(state)
-        @actions[values.each_with_index.max_by { |value, _idx| value }[1]]
+      def predict(state, deterministic: true)
+        values = Torch.tensor(q_values_for_state(state), dtype: :float32)
+        @actions[CategoricalDistribution.new(logits: values).choose(deterministic: deterministic)]
       end
 
       def value(state, action)

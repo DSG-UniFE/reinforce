@@ -41,9 +41,12 @@ module Reinforce
       @architecture.forward(as_tensor(state))
     end
 
-    def get_action(state)
+    # @parameter deterministic [Boolean] the greedy (argmax-Q) action if true;
+    #   otherwise a sample from a softmax over the Q-values.
+    # @returns [Integer] the chosen action's index.
+    def get_action(state, deterministic: true)
       logits = Torch.no_grad { forward(as_tensor(state)) }
-      CategoricalDistribution.new(logits: logits).sample
+      CategoricalDistribution.new(logits: logits).choose(deterministic: deterministic)
     end
 
     def random_action(_state)

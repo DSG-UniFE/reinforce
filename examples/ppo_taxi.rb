@@ -41,9 +41,9 @@ puts "Learned Policy"
   state = environment.reset
   max_actions_per_episode.times do
     action = agent.predict(state)
-    # warn "action: #{action} #{action.to_i}"
-    state, _, done = environment.step(action.to_i)
-    # warn "State: #{state}, Action: #{environment.actions[action]}"
+    # warn "action: #{action}"
+    state, _, done = environment.step(action)
+    # warn "State: #{state}, Action: #{action}"
     # environment.render
     if done
       warn "Goal reached!"

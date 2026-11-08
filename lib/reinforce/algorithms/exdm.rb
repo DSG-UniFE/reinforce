@@ -109,9 +109,9 @@ module Reinforce
         metrics.merge(score_loss:, intrinsic_bonus: intrinsic.mean.item, loss: total)
       end
 
-      def predict(state)
+      def predict(state, deterministic: true)
         tensor = Torch.tensor([flatten_state(state)], dtype: :float32)
-        @policy_model.predict(tensor)
+        @policy_model.predict(tensor, deterministic: deterministic)
       end
 
       private

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "reinforce/algorithms/temporal_difference"
+require_relative "../../support/agent_contract"
 
 describe Reinforce::Algorithms::TemporalDifference do
   let(:environment) do
@@ -17,6 +18,8 @@ describe Reinforce::Algorithms::TemporalDifference do
       epsilon: 0.0
     )
   end
+
+  include_context AgentContract, factory: -> { agent }, state: [0, 0], actions: %i[left right]
 
   it "can be instantiated" do
     expect(agent).not.to be_nil

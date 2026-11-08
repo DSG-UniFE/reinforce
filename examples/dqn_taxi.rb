@@ -43,7 +43,7 @@ state = environment.reset
 puts "Learned Policy"
 max_actions_per_episode.times do |_|
   action = agent.predict(state)
-  state, _, done = environment.step(action.to_i)
+  state, _, done = environment.step(action)
   # environment.render
   if done
     puts "Task Completed!"

@@ -46,9 +46,8 @@ module Reinforce
         end
       end
 
-      def predict(state)
-        # Return the action to be taken according to the policy learnt
-        @q_function_model.get_action(state)
+      def predict(state, deterministic: true)
+        @environment.actions[@q_function_model.get_action(state, deterministic: deterministic)]
       end
 
       # Train the agent.

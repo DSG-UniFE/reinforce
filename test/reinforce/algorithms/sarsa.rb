@@ -5,11 +5,22 @@
 
 require "reinforce/algorithms/sarsa"
 require "torch"
+require "reinforce/q_function_ann"
+require_relative "../../support/agent_contract"
 
 describe Reinforce::Algorithms::SARSA do
   let(:environment) { Object.new }
   let(:q_function_model) { Object.new }
   let(:agent) { Reinforce::Algorithms::SARSA.new(environment, q_function_model) }
+
+  include_context AgentContract,
+    factory: -> {
+      env = Object.new
+      env.define_singleton_method(:actions) { %i[left right] }
+      Reinforce::Algorithms::SARSA.new(env, Reinforce::QFunctionANN.new(2, 2, 0.001, 0.99))
+    },
+    state: [0.1, 0.2],
+    actions: %i[left right]
 
   it "can be instantiated" do
     expect(agent).not.to be_nil

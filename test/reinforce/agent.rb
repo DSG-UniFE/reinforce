@@ -31,7 +31,7 @@ describe Reinforce::Agent do
     concrete_class = Class.new do
       include Reinforce::Agent
 
-      def predict(state)
+      def predict(state, deterministic: true)
         state.first
       end
     end

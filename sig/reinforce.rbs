@@ -6,8 +6,9 @@ module Reinforce
   # #train/#save/#load are deliberately not part of this contract.
   module Agent
     # @parameter state a state from the environment's state space.
-    # @returns an action from the environment's action space.
-    def predict: (untyped state) -> untyped
+    # @parameter deterministic greedy if true (the default), sampled if false.
+    # @returns an element of the environment's `actions` array.
+    def predict: (untyped state, ?deterministic: bool) -> untyped
   end
 
   # The contract every environment in this library follows. See

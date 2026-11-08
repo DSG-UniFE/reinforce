@@ -2,8 +2,19 @@
 
 require "reinforce/offline_dataset"
 require "reinforce/algorithms/conservative_q_learning"
+require_relative "../../support/agent_contract"
 
 describe Reinforce::Algorithms::ConservativeQLearning do
+  include_context AgentContract,
+    factory: -> {
+      dataset = Reinforce::OfflineDataset.new
+      dataset.add(state: [0.0], action: :left, reward: 0.0, next_state: [0.0], done: true)
+      dataset.add(state: [0.0], action: :right, reward: 1.0, next_state: [0.0], done: true)
+      Reinforce::Algorithms::ConservativeQLearning.new(dataset, action_space: %i[left right])
+    },
+    state: [0.0],
+    actions: %i[left right]
+
   it "learns ANN Q-values that prefer the higher reward action" do
     srand(1234)
     Torch.manual_seed(1234)

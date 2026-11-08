@@ -33,8 +33,8 @@ testing_episodes.times do |i|
   state = environment.reset
   max_actions_per_episode.times do |_|
     action = agent.predict(state)
-    state, _, done = environment.step(action.to_i)
-    # puts "Action: #{environment.actions[action.to_i]}, Reward: #{reward}"
+    state, _, done = environment.step(action)
+    # puts "Action: #{action}, Reward: #{reward}"
     # environment.render
     if done
       puts "Task Completed!"

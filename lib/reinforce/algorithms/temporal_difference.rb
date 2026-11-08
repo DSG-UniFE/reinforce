@@ -30,9 +30,22 @@ module Reinforce
         actions.max_by { |action| action_values[action] || 0.0 }
       end
 
-      def predict(state)
+      def predict(state, deterministic: true)
         action_values = q_table[state_key(state)]
-        actions.max_by { |action| action_values[action] || 0.0 }
+        values = actions.map { |action| action_values[action] || 0.0 }
+        return actions[values.index(values.max)] if deterministic
+
+        # Boltzmann (softmax) sampling over Q-values, matching what
+        # QFunctionANN#get_action does for the neural value-based agents.
+        # Subtracting the max keeps Math.exp from overflowing.
+        max_value = values.max
+        weights = values.map { |value| Math.exp(value - max_value) }
+        threshold = rand * weights.sum
+        actions.each_with_index do |action, index|
+          threshold -= weights[index]
+          return action if threshold <= 0
+        end
+        actions.last
       end
 
       def learn(state, action, reward, next_state, done: false, next_action: nil, on_policy: false)

@@ -3,6 +3,7 @@
 require "tmpdir"
 require_relative "../../support/torch_test_helpers"
 require "reinforce/algorithms/sac"
+require_relative "../../support/agent_contract"
 
 describe Reinforce::Algorithms::SAC do
   let(:environment) do
@@ -51,6 +52,8 @@ describe Reinforce::Algorithms::SAC do
       **options
     )
   end
+
+  include_context AgentContract, factory: -> { build_agent }, state: [0.0], actions: %i[bad good]
 
   it "can train and accumulate losses/logs" do
     TorchTestHelpers.with_torch_seed do

@@ -100,6 +100,17 @@ class CategoricalDistribution
     @logits.argmax
   end
 
+  # The action-selection rule shared by every algorithm's #predict: the
+  # greedy action when deterministic, a sample from the distribution
+  # otherwise. Works for both unbatched ([actions]) and single-row batched
+  # ([1, actions]) logits, since #greedy/#sample take a flattened argmax.
+  #
+  # @parameter deterministic [Boolean] greedy if true, sampled if false.
+  # @returns [Integer] the chosen action's index.
+  def choose(deterministic: true)
+    (deterministic ? greedy : sample).item
+  end
+
   def entropy
     # The entropy of a categorical distribution is given by:
     # H(p) = - \sum_i p_i \log(p_i)

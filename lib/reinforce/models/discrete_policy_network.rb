@@ -30,10 +30,12 @@ module Reinforce
         Torch.softmax(forward(states), dim: 1)
       end
 
-      def predict(state)
+      # @parameter deterministic [Boolean] greedy if true, sampled if false.
+      # @returns [Object] an element of the action space.
+      def predict(state, deterministic: true)
         argument = state.is_a?(Torch::Tensor) ? state.to(@device) : Torch.tensor([state], dtype: :float32, device: @device)
         logits = Torch.no_grad { forward(argument) }
-        @action_space[logits.argmax(1).item]
+        @action_space[CategoricalDistribution.new(logits: logits).choose(deterministic: deterministic)]
       end
     end
   end

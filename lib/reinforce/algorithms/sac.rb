@@ -70,10 +70,9 @@ module Reinforce
         }
       end
 
-      def predict(state)
+      def predict(state, deterministic: true)
         logits = Torch.no_grad { @policy_model.call(state_tensor(state)) }
-        action_index = logits.argmax(1).item
-        @actions[action_index]
+        @actions[CategoricalDistribution.new(logits: logits).choose(deterministic: deterministic)]
       end
 
       def train(episodes:, steps_per_episode:, **_kwargs)

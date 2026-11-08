@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "reinforce/algorithms/ppo"
-require_relative "../../support/torch_test_helpers"
+require_relative "../../support/agent_contract"
 
 describe Reinforce::Algorithms::PPO do
   let(:environment) do
@@ -12,6 +12,8 @@ describe Reinforce::Algorithms::PPO do
   end
 
   let(:agent) { Reinforce::Algorithms::PPO.new(environment, 0.001, nil, nil, 0.2, 1, 2, 1.0) }
+
+  include_context AgentContract, factory: -> { agent }, state: [0.1, 0.2], actions: %i[left right]
 
   it "builds rollout buffers with step-aligned shapes" do
     buffers = agent.build_rollout_buffers(4)
@@ -54,13 +56,12 @@ describe Reinforce::Algorithms::PPO do
     # Regression: #predict converted its input with
     # `argument = Torch.tensor(...) unless state.is_a?(Torch::Tensor)`, which
     # left argument nil -- and crashed the policy network -- whenever the
-    # state was already a Tensor. Seeding identically before each call makes
-    # the sampled actions comparable, so this also checks both input forms
-    # reach the policy as the same values.
-    array_action = TorchTestHelpers.with_torch_seed { agent.predict([0.1, 0.2]) }
-    tensor_action = TorchTestHelpers.with_torch_seed { agent.predict(Torch.tensor([0.1, 0.2], dtype: :float32)) }
+    # state was already a Tensor. #predict is greedy by default, so equal
+    # actions also check both input forms reach the policy as the same values.
+    array_action = agent.predict([0.1, 0.2])
+    tensor_action = agent.predict(Torch.tensor([0.1, 0.2], dtype: :float32))
 
-    expect((0...2).cover?(array_action.to_i)).to be == true
-    expect(tensor_action.to_i).to be == array_action.to_i
+    expect(environment.actions).to be(:include?, array_action)
+    expect(tensor_action).to be == array_action
   end
 end

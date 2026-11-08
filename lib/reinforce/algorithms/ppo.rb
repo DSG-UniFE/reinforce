@@ -115,14 +115,13 @@ module Reinforce
         @agent.eval
       end
 
-      def predict(state)
+      def predict(state, deterministic: true)
         # A ternary, not `argument = ... unless state.is_a?(Torch::Tensor)`:
         # that modifier form assigns nil whenever the condition holds, so a
         # state that was already a Tensor reached the policy as nil.
         argument = state.is_a?(Torch::Tensor) ? state : Torch.tensor(state, dtype: :float32)
         logits = Torch.no_grad { @agent.policy_model.call(argument) }
-        pd = CategoricalDistribution.new(logits: logits)
-        pd.sample
+        @environment.actions[CategoricalDistribution.new(logits: logits).choose(deterministic: deterministic)]
       end
 
       def clip_grad_norm_(parameters, max_norm, norm_type: 2)

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "reinforce/algorithms/dqn"
+require_relative "../../support/agent_contract"
 
 describe Reinforce::Algorithms::DQN do
   let(:environment) do
@@ -11,6 +12,8 @@ describe Reinforce::Algorithms::DQN do
   end
 
   let(:agent) { Reinforce::Algorithms::DQN.new(environment, 0.001, 1.0) }
+
+  include_context AgentContract, factory: -> { agent }, state: [0.1, 0.2], actions: %i[left right]
 
   it "can be instantiated" do
     expect(agent).not.to be_nil

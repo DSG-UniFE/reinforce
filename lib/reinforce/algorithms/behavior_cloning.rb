@@ -45,10 +45,10 @@ module Reinforce
         self
       end
 
-      def predict(state)
+      def predict(state, deterministic: true)
         state_tensor = Torch.tensor([flatten_state(state)], dtype: :float32)
         logits = Torch.no_grad { @policy_model.call(state_tensor) }
-        @actions[logits.argmax(1).item]
+        @actions[CategoricalDistribution.new(logits: logits).choose(deterministic: deterministic)]
       end
 
       def save(path)

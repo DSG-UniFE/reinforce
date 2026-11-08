@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "reinforce/algorithms/ppo"
+require_relative "../../support/torch_test_helpers"
 
 describe Reinforce::Algorithms::PPO do
   let(:environment) do
@@ -47,5 +48,19 @@ describe Reinforce::Algorithms::PPO do
 
     expect(advantages.to_a).to be == [1.0, 4.0, 3.0]
     expect(returns.to_a).to be == [1.0, 4.0, 3.0]
+  end
+
+  it "predicts the same action from an Array state and the equivalent Tensor state" do
+    # Regression: #predict converted its input with
+    # `argument = Torch.tensor(...) unless state.is_a?(Torch::Tensor)`, which
+    # left argument nil -- and crashed the policy network -- whenever the
+    # state was already a Tensor. Seeding identically before each call makes
+    # the sampled actions comparable, so this also checks both input forms
+    # reach the policy as the same values.
+    array_action = TorchTestHelpers.with_torch_seed { agent.predict([0.1, 0.2]) }
+    tensor_action = TorchTestHelpers.with_torch_seed { agent.predict(Torch.tensor([0.1, 0.2], dtype: :float32)) }
+
+    expect((0...2).cover?(array_action.to_i)).to be == true
+    expect(tensor_action.to_i).to be == array_action.to_i
   end
 end

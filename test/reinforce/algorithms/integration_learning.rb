@@ -2,6 +2,7 @@
 
 require "reinforce/algorithms/dqn"
 require "reinforce/algorithms/ppo"
+require "reinforce/algorithms/monte_carlo_policy_gradient"
 require "reinforce/q_function_ann"
 
 class BinaryChoiceEnv
@@ -88,6 +89,35 @@ describe "integration learning smoke tests" do
     agent.train(episodes: 80, steps_per_episode: 8)
 
     after_logits = agent.agent.policy_model.call(state).to_a
+    after_gap = after_logits[1] - after_logits[0]
+
+    expect(before_gap).to be_within(1e-6).of(0.0)
+    expect(after_gap > 0.1).to be == true
+  end
+
+  it "MonteCarloPolicyGradient policy shifts toward the better action on a deterministic one-step task" do
+    srand(1234)
+    Torch.manual_seed(1234)
+    env = BinaryChoiceEnv.new
+
+    policy = Torch::NN::Linear.new(1, 2)
+    Torch::NN::Init.constant!(policy.weight, 0.0)
+    Torch::NN::Init.constant!(policy.bias, 0.0)
+    optimizer = Torch::Optim::SGD.new(policy.parameters, lr: 0.05)
+    agent = Reinforce::Algorithms::MonteCarloPolicyGradient.new(1, 2, 0.99, policy, optimizer)
+
+    state = Torch.tensor([0.0], dtype: :float32)
+    before_logits = Torch.no_grad { policy.call(state) }.to_a
+    before_gap = before_logits[1] - before_logits[0]
+
+    300.times do
+      action = agent.choose_action(env.reset)
+      _next_state, reward, _done = env.step(action)
+      agent.get_reward(reward)
+      agent.update_policy
+    end
+
+    after_logits = Torch.no_grad { policy.call(state) }.to_a
     after_gap = after_logits[1] - after_logits[0]
 
     expect(before_gap).to be_within(1e-6).of(0.0)

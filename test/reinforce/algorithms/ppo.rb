@@ -2,6 +2,7 @@
 
 require "reinforce/algorithms/ppo"
 require_relative "../../support/agent_contract"
+require_relative "../../support/torch_test_helpers"
 
 describe Reinforce::Algorithms::PPO do
   let(:environment) do
@@ -50,6 +51,38 @@ describe Reinforce::Algorithms::PPO do
 
     expect(advantages.to_a).to be == [1.0, 4.0, 3.0]
     expect(returns.to_a).to be == [1.0, 4.0, 3.0]
+  end
+
+  it "splits rollout indices into non-overlapping minibatches of minibatch_size" do
+    # Regression: minibatches were sliced with an inclusive range
+    # (b_inds[start..start + minibatch_size]), so each had minibatch_size + 1
+    # samples and consecutive minibatches overlapped by one.
+    indices = [4, 0, 3, 1, 2]
+    batches = agent.minibatches(indices)
+
+    expect(batches).to be == [[4, 0], [3, 1], [2]]
+    expect(batches.flatten).to be == indices
+  end
+
+  it "lets the entropy bonus affect training" do
+    # Regression: #train re-wrapped the entropy tensor in Torch.tensor(...),
+    # which drops its autograd history, so the entropy term contributed no
+    # gradient: training with and without it produced identical weights.
+    steppable = Object.new
+    steppable.define_singleton_method(:state_size) { 2 }
+    steppable.define_singleton_method(:actions) { %i[left right] }
+    steppable.define_singleton_method(:reset) { [0.1, 0.2] }
+    steppable.define_singleton_method(:step) { |action| [[0.1, 0.2], (action == 1) ? 1.0 : 0.0, false, {}] }
+
+    policy_weights = [0.0, 0.5].map do |coefficient|
+      TorchTestHelpers.with_torch_seed do
+        ppo = Reinforce::Algorithms::PPO.new(steppable, 0.01, nil, nil, 0.2, 1, 4, 0.99, entropy_coefficient: coefficient)
+        ppo.train(episodes: 2, steps_per_episode: 8)
+        TorchTestHelpers.parameter_snapshot(ppo.agent.policy_model).flatten
+      end
+    end
+
+    expect(policy_weights[0].zip(policy_weights[1]).any? { |a, b| (a - b).abs > 1e-6 }).to be == true
   end
 
   it "predicts the same action from an Array state and the equivalent Tensor state" do

@@ -18,7 +18,13 @@ module Reinforce
     #   whether the passenger's and destination's coordinates are part of
     #   the observed state, matching the original `Taxi` (2-dimensional
     #   state, taxi position only). `true` concatenates them onto the
-    #   state (6-dimensional), matching the original `TaxiV2`. Note the
+    #   state, followed by a passenger-in-taxi flag (1.0 once picked up,
+    #   0.0 before): 7-dimensional. The original `TaxiV2` had the six
+    #   coordinates but no flag, which left the task partially observable
+    #   -- the passenger's coordinates don't follow the taxi after pickup,
+    #   so "heading to the passenger" and "carrying the passenger" were
+    #   indistinguishable, and no deterministic policy could solve it.
+    #   Note the
     #   `false` default means the agent cannot observe where the
     #   passenger or destination are -- that is inherited unchanged from
     #   the original `Taxi` behavior, not a recommendation; environments
@@ -27,16 +33,23 @@ module Reinforce
     # - `dropoff_reward:` (default `1`, matching the original `Taxi`) is
     #   the reward for a successful dropoff; the original `TaxiV2` used
     #   `20`.
+    # - `illegal_action_reward:` (default `-10`, matching the OpenAI Gym Taxi
+    #   task) is the reward for a pickup or dropoff attempted in the wrong
+    #   place or state. Large penalties here can teach an agent to never
+    #   attempt pickup/dropoff at all (every step then costs only -1) long
+    #   before it discovers the dropoff reward, so a milder value can make
+    #   the task learnable.
     class Taxi
       include ::Reinforce::Environment
 
       attr_reader :state, :reward, :done
 
-      def initialize(grid_size: 4, randomize: true, observe_passenger_and_destination: false, dropoff_reward: 1)
+      def initialize(grid_size: 4, randomize: true, observe_passenger_and_destination: false, dropoff_reward: 1, illegal_action_reward: -10)
         @grid_size = grid_size
         @randomize = randomize
         @observe_passenger_and_destination = observe_passenger_and_destination
         @dropoff_reward = dropoff_reward
+        @illegal_action_reward = illegal_action_reward
         @reward = 0
         @done = false
         reset
@@ -77,7 +90,7 @@ module Reinforce
             @passenger_in_taxi = true
             warn "Passenger picked up!"
           else
-            reward = -10
+            reward = @illegal_action_reward
           end
         when :dropoff
           if @taxi_location == @destination && @passenger_in_taxi
@@ -85,7 +98,7 @@ module Reinforce
             @done = true
             warn "Task Completed!"
           else
-            reward = -10
+            reward = @illegal_action_reward
           end
         end
 
@@ -123,8 +136,9 @@ module Reinforce
       end
 
       def build_state
-        state = @observe_passenger_and_destination ? [@taxi_location, @passenger_location, @destination].flatten : @taxi_location
-        state.map(&:to_f)
+        return @taxi_location.map(&:to_f) unless @observe_passenger_and_destination
+
+        [*@taxi_location, *@passenger_location, *@destination, @passenger_in_taxi ? 1 : 0].map(&:to_f)
       end
     end
   end

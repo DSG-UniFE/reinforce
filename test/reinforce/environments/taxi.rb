@@ -60,8 +60,8 @@ describe Reinforce::Environments::Taxi do
 
     it "exposes a stable environment contract" do
       state = environment.reset
-      expect(state.size).to be == 6
-      expect(environment.state_size).to be == 6
+      expect(state.size).to be == 7
+      expect(environment.state_size).to be == 7
       expect(environment.actions.size).to be == 6
     end
 
@@ -69,8 +69,8 @@ describe Reinforce::Environments::Taxi do
       next_state_a, reward_a, done_a = environment.step(:east)
       next_state_b, reward_b, done_b = environment.step(3)
 
-      expect(next_state_a.size).to be == 6
-      expect(next_state_b.size).to be == 6
+      expect(next_state_a.size).to be == 7
+      expect(next_state_b.size).to be == 7
       expect(reward_a.is_a?(Numeric)).to be == true
       expect(reward_b.is_a?(Numeric)).to be == true
       expect([true, false].include?(done_a)).to be == true
@@ -83,7 +83,7 @@ describe Reinforce::Environments::Taxi do
       state_b = environment.reset
 
       expect(state_a).to be == state_b
-      expect(state_a).to be == [0.0, 0.0, 2.0, 2.0, 3.0, 3.0]
+      expect(state_a).to be == [0.0, 0.0, 2.0, 2.0, 3.0, 3.0, 0.0]
     end
 
     it "rewards a successful dropoff with the configured dropoff_reward of 20" do
@@ -102,6 +102,37 @@ describe Reinforce::Environments::Taxi do
 
       expect(reward).to be == 20
       expect(done).to be == true
+    end
+
+    it "observes whether the passenger is in the taxi" do
+      # Regression: the passenger's coordinates don't follow the taxi, so
+      # without this flag the states before and after pickup were identical.
+      environment.reset
+      environment.step(:east)
+      environment.step(:east)
+      environment.step(:south)
+      before_pickup = environment.step(:south)[0] # taxi at the passenger, [2, 2]
+      after_pickup = environment.step(:pickup)[0]
+
+      expect(before_pickup.last).to be_within(1e-9).of(0.0)
+      expect(after_pickup.last).to be_within(1e-9).of(1.0)
+      expect(after_pickup.first(6)).to be == before_pickup.first(6)
+      expect(environment.reset.last).to be_within(1e-9).of(0.0)
+    end
+
+    it "penalizes a wrong pickup or dropoff with -10 by default" do
+      environment.reset # taxi at [0, 0]: no passenger here, none on board
+
+      expect(environment.step(:pickup)[1]).to be == -10
+      expect(environment.step(:dropoff)[1]).to be == -10
+    end
+
+    it "penalizes a wrong pickup or dropoff with the configured illegal_action_reward" do
+      mild = Reinforce::Environments::Taxi.new(randomize: false, observe_passenger_and_destination: true, illegal_action_reward: -2)
+
+      expect(mild.step(:pickup)[1]).to be == -2
+      expect(mild.step(:dropoff)[1]).to be == -2
+      expect(mild.step(:east)[1]).to be == -1
     end
   end
 end

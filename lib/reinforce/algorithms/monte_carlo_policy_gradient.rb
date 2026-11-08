@@ -22,6 +22,9 @@ module Reinforce
       # is identical (zero standard deviation).
       RETURN_NORMALIZATION_EPSILON = 1e-8
 
+      # Default weight of the entropy bonus in #update_policy's loss.
+      ENTROPY_COEFFICIENT = 0.01
+
       attr_reader :logs
 
       # @parameter environment [Reinforce::Environment] the environment to
@@ -36,16 +39,20 @@ module Reinforce
       #   returns before the update (see #normalize). Skipped for single-step
       #   episodes, whose one return would always normalize to zero and
       #   leave nothing to learn from.
-      def initialize(environment, model, optimizer, discount_factor: 0.99, normalize_returns: true)
+      # @parameter entropy_coefficient [Float] weight of the entropy bonus
+      #   (see #update_policy); 0.0 disables it.
+      def initialize(environment, model, optimizer, discount_factor: 0.99, normalize_returns: true, entropy_coefficient: ENTROPY_COEFFICIENT)
         @environment = environment
         @actions = environment.actions
         @model = model
         @optimizer = optimizer
         @discount_factor = discount_factor
         @normalize_returns = normalize_returns
+        @entropy_coefficient = entropy_coefficient
         @log_probs = []
+        @entropies = []
         @rewards = []
-        @logs = {loss: [], episode_reward: [], episode_length: []}
+        @logs = {loss: [], entropy: [], episode_reward: [], episode_length: []}
       end
 
       # Train for `episodes` episodes of at most `steps_per_episode` steps
@@ -67,7 +74,10 @@ module Reinforce
             break if done
           end
 
-          @logs[:loss] << update_policy.item unless @log_probs.empty?
+          unless @log_probs.empty?
+            @logs[:entropy] << Torch.stack(@entropies).mean.item
+            @logs[:loss] << update_policy.item
+          end
           @logs[:episode_reward] << episode_reward
           @logs[:episode_length] << episode_length
         end
@@ -75,6 +85,7 @@ module Reinforce
 
       def reset
         @log_probs = []
+        @entropies = []
         @rewards = []
       end
 
@@ -101,6 +112,7 @@ module Reinforce
         pd = CategoricalDistribution.new(logits: logits)
         action = pd.sample.item
         @log_probs << pd.log_probability(action)
+        @entropies << pd.entropy
         action
       end
 
@@ -118,7 +130,12 @@ module Reinforce
         # recorded log-probabilities would copy their values but drop their
         # autograd history, so no gradient could ever reach @model.
         log_probs = Torch.stack(@log_probs)
-        loss = Torch.sum(-log_probs * returns)
+        # The entropy bonus rewards the policy for staying stochastic. Without
+        # it, nothing stops REINFORCE from committing to one action sequence
+        # early (e.g. pushing into a wall) and never sampling anything else
+        # again -- once the policy is near-deterministic, every episode is the
+        # same and the normalized returns carry no signal to escape with.
+        loss = Torch.sum(-log_probs * returns) - @entropy_coefficient * Torch.stack(@entropies).sum
         @optimizer.zero_grad
         loss.backward
         @optimizer.step

@@ -51,7 +51,11 @@ puts "Learned Policy"
   warn "Starting episode #{i}"
   state = environment.reset
   max_actions_per_episode.times do
-    action = agent.predict(state)
+    # Sampled, not greedy: GridWorld re-randomizes its obstacles on every
+    # reset but the state is just the agent's position, so a deterministic
+    # policy can't see an obstacle and may push into it forever, while a
+    # sampled one gets around it.
+    action = agent.predict(state, deterministic: false)
     state, _, done = environment.step(action)
     # warn "State: #{state} Action: #{action} Done: #{done}"
     if done

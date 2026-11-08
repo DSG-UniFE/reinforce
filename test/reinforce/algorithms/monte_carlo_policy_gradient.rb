@@ -87,6 +87,7 @@ describe Reinforce::Algorithms::MonteCarloPolicyGradient do
         agent.update_policy
 
         expect(agent.instance_variable_get(:@log_probs)).to be == []
+        expect(agent.instance_variable_get(:@entropies)).to be == []
         expect(agent.instance_variable_get(:@rewards)).to be == []
       end
     end
@@ -156,6 +157,48 @@ describe Reinforce::Algorithms::MonteCarloPolicyGradient do
       large = parameters_after_episode(1000.0, normalize_returns: false)
 
       expect(small.zip(large).any? { |a, b| (a - b).abs > 1e-2 }).to be == true
+    end
+  end
+
+  describe "entropy bonus" do
+    # With all-zero rewards (and normalization off, so they stay zero), the
+    # policy-gradient term vanishes and the entropy bonus is the only thing
+    # the update can respond to.
+    def zero_reward_update(entropy_coefficient)
+      TorchTestHelpers.with_torch_seed do
+        bonus_policy = Torch::NN::Linear.new(2, 3)
+        optimizer = Torch::Optim::SGD.new(bonus_policy.parameters, lr: 0.5)
+        bonus_agent = Reinforce::Algorithms::MonteCarloPolicyGradient.new(
+          environment, bonus_policy, optimizer, normalize_returns: false, entropy_coefficient: entropy_coefficient
+        )
+        entropy = -> { CategoricalDistribution.new(logits: Torch.no_grad { bonus_policy.call(Torch.tensor([0.5, -0.5])) }).entropy.item }
+        snapshot = TorchTestHelpers.parameter_snapshot(bonus_policy)
+        before = entropy.call
+        3.times do
+          bonus_agent.choose_action([0.5, -0.5])
+          bonus_agent.get_reward(0.0)
+        end
+        bonus_agent.update_policy
+        {before: before, after: entropy.call, changed: TorchTestHelpers.parameters_changed?(bonus_policy, snapshot)}
+      end
+    end
+
+    it "pushes the policy toward higher entropy" do
+      result = zero_reward_update(0.1)
+
+      expect(result[:after] > result[:before]).to be == true
+    end
+
+    it "can be turned off" do
+      expect(zero_reward_update(0.0)[:changed]).to be == false
+    end
+
+    it "logs the mean policy entropy of each trained episode" do
+      agent.train(episodes: 3, steps_per_episode: 10)
+
+      expect(agent.logs[:entropy].size).to be == 3
+      # Three actions: entropy lies between 0 and ln(3).
+      expect(agent.logs[:entropy].all? { |e| e > 0 && e <= Math.log(3) + 1e-6 }).to be == true
     end
   end
 

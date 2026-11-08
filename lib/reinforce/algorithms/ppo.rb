@@ -85,8 +85,9 @@ module Reinforce
       attr_accessor :agent, :optimizer
 
       def initialize(environment, learning_rate, policy = nil, value = nil, clip_param = 0.2, ppo_epochs = 10, minibatch_size = 32, discount_factor = 0.99,
-        network_config: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG)
+        network_config: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG, entropy_coefficient: 0.01)
         @environment = environment
+        @entropy_coefficient = entropy_coefficient
         @agent = ActorCriticNetwork.new(
           environment.state_size, environment.actions.size, policy, value, network_config: network_config
         )
@@ -154,6 +155,16 @@ module Reinforce
           end
         end
         total_norm**(1.0 / norm_type)
+      end
+
+      # Split a (shuffled) list of rollout indices into consecutive,
+      # non-overlapping minibatches of @minibatch_size (the last one may be
+      # smaller), covering every index exactly once per epoch. This used to
+      # be an inline `b_inds[start..start + @minibatch_size]` -- an inclusive
+      # range, so each minibatch had one sample too many and consecutive
+      # minibatches shared one.
+      def minibatches(indices)
+        indices.each_slice(@minibatch_size).to_a
       end
 
       def build_rollout_buffers(num_steps)
@@ -276,11 +287,12 @@ module Reinforce
 
           1.upto(@ppo_epochs) do |epoch|
             b_inds.shuffle!
-            (0..(num_steps - 1)).step(@minibatch_size) do |start|
-              end_s = start + @minibatch_size
-              mb_inds = b_inds[start..end_s]
+            minibatches(b_inds).each do |mb_inds|
+              # Use the entropy tensor as returned: re-wrapping it in
+              # Torch.tensor(...), as this used to, copies its values but drops
+              # its autograd history, so the entropy bonus below contributed no
+              # gradient at all and PPO trained without one.
               _, newlogprob, entropy, newvalue = @agent.get_action_and_value(b_obs[Torch.tensor(mb_inds)], b_actions[Torch.tensor(mb_inds)])
-              entropy = Torch.tensor(entropy)
               logratio = newlogprob - b_logprobs[Torch.tensor(mb_inds)]
               ratio = logratio.exp
 
@@ -316,7 +328,7 @@ module Reinforce
               entropy_loss = entropy.mean
 
               # warn "entropy_loss: #{entropy_loss}"
-              loss = pg_loss - 0.01 * entropy_loss + value_loss * 0.5
+              loss = pg_loss - @entropy_coefficient * entropy_loss + value_loss * 0.5
               @logs[:loss] << loss.item
 
               # Here another type of loss without entropy

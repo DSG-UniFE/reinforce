@@ -38,7 +38,7 @@ value = Torch::NN::Sequential.new(
 agent = Reinforce::Algorithms::PPO.new(environment, learning_rate, policy, value)
 
 # Train the agent
-agent.train(episodes:, steps_per_episode: max_actions_per_episode)
+agent.train(episodes:, steps_per_episode: max_actions_per_episode, progress_output: $stdout)
 
 agent.save("gridworld_ppo.pth")
 

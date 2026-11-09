@@ -205,7 +205,9 @@ module Reinforce
         [Torch.tensor(advantages, dtype: :float32), Torch.tensor(returns, dtype: :float32)]
       end
 
-      def train(episodes:, steps_per_episode:, **_kwargs)
+      # @param progress_output [IO, nil] where to print training progress
+      # (e.g. `$stdout`); nothing is printed when nil (the default)
+      def train(episodes:, steps_per_episode:, progress_output: nil, **_kwargs)
         # Initialize the experience buffer, tensors that will store the data
         num_steps = steps_per_episode
         buffers = build_rollout_buffers(num_steps)
@@ -225,7 +227,7 @@ module Reinforce
 
         1.upto(episodes) do |episode_number|
           progress = episode_number.to_f / episodes * 100
-          print "\rTraining: #{progress.round(2)}%" if episode_number % 10 == 0
+          progress_output&.print "\rTraining: #{progress.round(2)}%" if episode_number % 10 == 0
           # Anneal the learning rate
           fract = 1.0 - (episode_number - 1) / episodes
           lrnow = @learning_rate * fract

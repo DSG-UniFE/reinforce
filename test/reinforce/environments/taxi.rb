@@ -47,6 +47,24 @@ describe Reinforce::Environments::Taxi do
       expect(reward).to be == 1
       expect(done).to be == true
     end
+
+    it "reports pickup and dropoff in the step info instead of printing them" do
+      environment.reset
+      environment.instance_variable_set(:@taxi_location, environment.instance_variable_get(:@passenger_location))
+      _, _, _, pickup_info = environment.step(:pickup)
+      environment.instance_variable_set(:@taxi_location, environment.instance_variable_get(:@destination))
+      _, _, _, dropoff_info = environment.step(:dropoff)
+
+      expect(pickup_info).to be == {event: :passenger_picked_up}
+      expect(dropoff_info).to be == {event: :task_completed}
+    end
+
+    it "returns an empty step info for ordinary moves" do
+      environment.reset
+      _, _, _, info = environment.step(:south)
+
+      expect(info).to be == {}
+    end
   end
 
   describe "full-observation fixed-start configuration (formerly TaxiV2)" do

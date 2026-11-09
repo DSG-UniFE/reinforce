@@ -25,6 +25,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- `DQN`, `PPO` and `SARSA` no longer print training progress by default; pass
+  `progress_output: $stdout` to `#train` to get the old `Training: N%` output.
+- `Taxi#step` no longer prints "Passenger picked up!"/"Task Completed!" to
+  stderr; it reports them in the step info as `{event: :passenger_picked_up}`
+  and `{event: :task_completed}` instead.
 - Load Torch-dependent algorithms only when `torch-rb` is available, while
   preserving support for loading the non-Torch core of the library.
 - Improved PPO model initialization and training-mode handling.

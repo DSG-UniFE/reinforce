@@ -57,8 +57,10 @@ module Reinforce
       # agent takes in each episode (note that the agent might reach the
       # goal state before this number is reached: in that case, the episode
       # terminates)
+      # @param progress_output [IO, nil] where to print training progress
+      # (e.g. `$stdout`); nothing is printed when nil (the default)
       # @return [void]
-      def train(episodes:, steps_per_episode:, **_kwargs)
+      def train(episodes:, steps_per_episode:, progress_output: nil, **_kwargs)
         # Epsilon greedy algorithm implements a dynamic exploration /
         # exploitation tradeoff. The epsilon parameter starts at the initial
         # value and decays over the training process to reach zero at the end
@@ -71,7 +73,7 @@ module Reinforce
         1.upto(episodes) do |episode_number|
           # puts "Episode: #{episode_number} epsilon: #{epsilon}"
           progress = episode_number.to_f / episodes * 100
-          print "\rTraining: #{progress.round(2)}%" if episode_number % 10 == 0
+          progress_output&.print "\rTraining: #{progress.round(2)}%" if episode_number % 10 == 0
           # Reset the environment
           state = @environment.reset
 

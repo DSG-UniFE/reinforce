@@ -49,7 +49,7 @@ max_actions_per_episode = 125
 agent = Reinforce::Algorithms::PPO.new(environment, learning_rate, entropy_coefficient: entropy_coefficient)
 puts "State size: #{environment.state_size}"
 # Train the agent
-agent.train(episodes:, steps_per_episode: max_actions_per_episode)
+agent.train(episodes:, steps_per_episode: max_actions_per_episode, progress_output: $stdout)
 
 agent.save("taxi_ppo.pth")
 

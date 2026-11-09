@@ -75,6 +75,7 @@ module Reinforce
       def step(action)
         action = actions[action] if action.is_a?(Integer)
         reward = -1 # default reward according to the OpenAI Gym Taxi task
+        info = {}
 
         case action
         when :south
@@ -88,7 +89,7 @@ module Reinforce
         when :pickup
           if @taxi_location == @passenger_location && !@passenger_in_taxi
             @passenger_in_taxi = true
-            warn "Passenger picked up!"
+            info[:event] = :passenger_picked_up
           else
             reward = @illegal_action_reward
           end
@@ -96,7 +97,7 @@ module Reinforce
           if @taxi_location == @destination && @passenger_in_taxi
             reward = @dropoff_reward
             @done = true
-            warn "Task Completed!"
+            info[:event] = :task_completed
           else
             reward = @illegal_action_reward
           end
@@ -104,7 +105,7 @@ module Reinforce
 
         @state = build_state
 
-        [@state, reward, @done, {}]
+        [@state, reward, @done, info]
       end
 
       # Let's render the environment on the screen: a grid with the

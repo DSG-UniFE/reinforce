@@ -25,7 +25,9 @@ module Reinforce
       # Default weight of the entropy bonus in #update_policy's loss.
       ENTROPY_COEFFICIENT = 0.01
 
-      attr_reader :logs
+      attr_reader :metrics
+
+      alias_method :logs, :metrics
 
       # @parameter environment [Reinforce::Environment] the environment to
       #   train on; #predict returns elements of its `actions`.
@@ -52,7 +54,7 @@ module Reinforce
         @log_probs = []
         @entropies = []
         @rewards = []
-        @logs = {loss: [], entropy: [], episode_reward: [], episode_length: []}
+        @metrics = Reinforce::Metrics::Recorder.new
       end
 
       # Train for `episodes` episodes of at most `steps_per_episode` steps
@@ -75,11 +77,11 @@ module Reinforce
           end
 
           unless @log_probs.empty?
-            @logs[:entropy] << Torch.stack(@entropies).mean.item
-            @logs[:loss] << update_policy.item
+            @metrics.record(:entropy, Torch.stack(@entropies).mean.item)
+            @metrics.record(:loss, update_policy.item)
           end
-          @logs[:episode_reward] << episode_reward
-          @logs[:episode_length] << episode_length
+          @metrics.record(:episode_reward, episode_reward)
+          @metrics.record(:episode_length, episode_length)
         end
       end
 

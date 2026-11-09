@@ -60,11 +60,11 @@ agent.train(episodes:, steps_per_episode: max_actions_per_episode, progress_outp
 agent.save("gridworld_dqn.pth")
 # Print the learned policy
 
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:loss], 25), title: "Loss", width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.metrics[:loss], 25), title: "Loss", width: 100, height: 20)
 plot.render
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_reward], 25), title: "Rewards", width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.metrics[:episode_reward], 25), title: "Rewards", width: 100, height: 20)
 plot.render
-plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.logs[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
+plot = UnicodePlot.lineplot(Reinforce.moving_average(agent.metrics[:episode_length], 25), title: "Episode Length", width: 100, height: 20)
 plot.render
 
 puts "Learned Policy"

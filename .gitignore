@@ -10,3 +10,4 @@
 /vendor/
 gems.locked
 .projections.json
+*.jsonl

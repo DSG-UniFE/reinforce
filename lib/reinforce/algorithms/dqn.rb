@@ -42,7 +42,9 @@ module Reinforce
     class DQN
       include ::Reinforce::Agent
 
-      attr_reader :logs
+      attr_reader :metrics
+
+      alias_method :logs, :metrics
 
       def initialize(environment, learning_rate = 2.5e-4, discount_factor = 0.99, epsilon = 0.9,
         q_function_model: nil, q_function_model_target: nil, double_dqn: false, dueling: false,
@@ -63,7 +65,7 @@ module Reinforce
         @update_frequency_for_q = 10
         @update_frequency_for_q_target = 500
         @discount_factor = discount_factor
-        @logs = {loss: [], episode_reward: [], episode_length: []}
+        @metrics = Reinforce::Metrics::Recorder.new
       end
 
       def choose_action(state, epsilon)
@@ -137,7 +139,7 @@ module Reinforce
                 double_dqn: @double_dqn,
                 weights: experience[:weights]
               )
-              @logs[:loss] << result[:loss]
+              @metrics.record(:loss, result[:loss])
 
               # Feed the freshly-observed TD-errors back so future sampling
               # reflects how wrong the Q-function currently is about these
@@ -156,8 +158,8 @@ module Reinforce
           if done || actions_left.zero? # Reached the goal state
             actions_left = steps_per_episode
             state = @environment.reset
-            @logs[:episode_reward] << episode_reward
-            @logs[:episode_length] << episode_length
+            @metrics.record(:episode_reward, episode_reward)
+            @metrics.record(:episode_length, episode_length)
             episode_reward = 0
             episode_length = 0
           end

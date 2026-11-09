@@ -34,7 +34,7 @@ agent = Reinforce::Algorithms::MonteCarloPolicyGradient.new(environment, model, 
 # Train the agent (one policy update at the end of each episode)
 agent.train(episodes: episodes, steps_per_episode: max_actions_per_episode)
 
-rewards = agent.logs[:episode_reward]
+rewards = agent.metrics[:episode_reward]
 window = [100, rewards.size].min
 puts "Mean reward over the last #{window} episodes: #{rewards.last(window).sum / window}"
 

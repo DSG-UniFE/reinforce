@@ -12,9 +12,10 @@ module Reinforce
   # state or #save/#load pair to persist yet. The online algorithms
   # (SARSA, DQN, PPO, SAC, MonteCarloPolicyGradient) share one
   # standardized signature,
-  # `train(episodes:, steps_per_episode:, **kwargs)`, plus a `logs`
-  # reader, so generic driver and benchmarking code can train any of them
-  # the same way; offline ones generally expose
+  # `train(episodes:, steps_per_episode:, **kwargs)`, plus a `metrics`
+  # reader (a Reinforce::Metrics::Recorder; `logs` is an alias), so
+  # generic driver and benchmarking code can train any of them the same
+  # way; offline ones generally expose
   # `train(epochs:, batch_size:)`. Forcing both shapes
   # into one required signature would paper over a real difference
   # (online vs. offline training) rather than remove duplication, so

@@ -9,7 +9,9 @@ module Reinforce
     class ConservativeQLearning
       include ::Reinforce::Agent
 
-      attr_reader :q_network, :q_target_network, :actions, :logs
+      attr_reader :q_network, :q_target_network, :actions, :metrics
+
+      alias_method :logs, :metrics
 
       def initialize(dataset, action_space: nil, learning_rate: 1e-3, discount_factor: 0.99, alpha: 0.1,
         network_config: ::Reinforce::Networks::Config.new, q_network: nil, q_target_network: nil)
@@ -31,7 +33,7 @@ module Reinforce
         @q_target_network.train
 
         @optimizer = Torch::Optim::Adam.new(@q_network.parameters, lr: learning_rate)
-        @logs = {loss: [], bellman_loss: [], cql_penalty: []}
+        @metrics = Reinforce::Metrics::Recorder.new
       end
 
       def train(epochs: 20, batch_size: 64, tau: 1.0)
@@ -57,9 +59,9 @@ module Reinforce
           loss.backward
           @optimizer.step
 
-          @logs[:loss] << loss.item
-          @logs[:bellman_loss] << bellman_loss.item
-          @logs[:cql_penalty] << conservative_penalty.item
+          @metrics.record(:loss, loss.item)
+          @metrics.record(:bellman_loss, bellman_loss.item)
+          @metrics.record(:cql_penalty, conservative_penalty.item)
 
           soft_update_targets(tau)
         end

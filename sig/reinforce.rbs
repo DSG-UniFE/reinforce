@@ -36,4 +36,47 @@ module Reinforce
     # methods above, no algorithm in this library depends on #render.
     def render: (?IO output_stream) -> void
   end
+
+  module Metrics
+    # Anything responding to `call(key, value, step)`, e.g. a lambda.
+    interface _Sink
+      def call: (Symbol key, Numeric value, Integer step) -> untyped
+    end
+
+    # Collects the scalar metrics an algorithm records while training and
+    # forwards each value to its sinks. See lib/reinforce/metrics/recorder.rb.
+    class Recorder
+      include Enumerable[[Symbol, Array[Numeric]]]
+
+      attr_reader sinks: Array[_Sink]
+
+      def initialize: (?sinks: Array[_Sink]) -> void
+      def add_sink: (_Sink sink) -> self
+      def record: (Symbol | String key, Numeric value, ?step: Integer?) -> Numeric
+      def record_all: (Hash[Symbol, Numeric] metrics, ?step: Integer?) -> Hash[Symbol, Numeric]
+      def []: (Symbol | String key) -> Array[Numeric]
+      def keys: () -> Array[Symbol]
+      def key?: (Symbol | String key) -> bool
+      def each: () { ([Symbol, Array[Numeric]]) -> void } -> self
+              | () -> Enumerator[[Symbol, Array[Numeric]], self]
+      def last: (Symbol | String key) -> Numeric?
+      def mean: (Symbol | String key, ?window: Integer?) -> Float?
+      def to_h: () -> Hash[Symbol, Array[Numeric]]
+    end
+
+    # Prints a one-line summary every `every` values of the `trigger` metric.
+    class ConsoleSink
+      include _Sink
+
+      def initialize: (?output: IO, ?every: Integer, ?trigger: Symbol, ?precision: Integer) -> void
+    end
+
+    # Writes every recorded value as one JSON object per line.
+    class JSONLinesSink
+      include _Sink
+
+      def initialize: (String | IO destination, ?clock: ^() -> Float) -> void
+      def close: () -> void
+    end
+  end
 end

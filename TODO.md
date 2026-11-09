@@ -4,7 +4,7 @@ Planned changes to `reinforce`, roughly in the order we intend to tackle them. I
 
 ## Consolidation of the existing algorithms
 
-- **Shared metrics recording.** Replace the per-algorithm `@logs` hashes, which use different key sets, with a common `Reinforce::MetricsRecorder` that all algorithms push to. Use the same names for common metrics (`episode_reward`, `episode_length`, `loss`) and allow algorithm-specific extras.
+- **Experiment tracker integration.** An MLflow sink for `Reinforce::Metrics` (via MLflow's REST API, so no new gem dependency), and a way to record each run's hyperparameters alongside its metrics, which builds on the config objects below.
 - **Learning regression benchmark.** Train PPO, DQN and SAC on GridWorld and Taxi for a fixed episode budget across several seeds, and check a minimum reward or success-rate threshold. Tag it as a slow test so the default `sus` run stays fast, and run it in CI as a separate step.
 - **Hyperparameter config objects.** Replace the long positional argument lists in each algorithm's constructor with per-algorithm `Data.define` configs (e.g. `DQNConfig`), so a full hyperparameter set is one constructible, loggable, diffable value.
 - **Device support everywhere.** Pass `device:` through the tensor construction call sites in SAC, PPO, `BehaviorCloning`, `ConservativeQLearning`, `ExDM` and `MonteCarloPolicyGradient`, following the pattern already used in `QFunctionANN` and `DQN`.

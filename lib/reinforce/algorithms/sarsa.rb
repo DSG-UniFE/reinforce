@@ -21,7 +21,9 @@ module Reinforce
     class SARSA
       include ::Reinforce::Agent
 
-      attr_reader :logs
+      attr_reader :metrics
+
+      alias_method :logs, :metrics
 
       def initialize(environment, q_function_model, epsilon = 0.01)
         @environment = environment
@@ -29,7 +31,7 @@ module Reinforce
         @initial_epsilon = epsilon
         # Create a store for learning experience
         @experience = ::Reinforce::Experience.new
-        @logs = {loss: [], episode_reward: [], episode_length: []}
+        @metrics = Reinforce::Metrics::Recorder.new
       end
 
       def choose_action(state, epsilon)
@@ -99,8 +101,8 @@ module Reinforce
             action = next_action
 
             if done || actions_left.zero? # Reached the goal state
-              @logs[:episode_reward] << episode_reward
-              @logs[:episode_length] << episode_length
+              @metrics.record(:episode_reward, episode_reward)
+              @metrics.record(:episode_length, episode_length)
               episode_length = 0
               break
             end
@@ -108,7 +110,7 @@ module Reinforce
 
           # Update Q function after each batch of actions
           result = @q_function_model.update(@experience, on_policy: true)
-          @logs[:loss] << result[:loss]
+          @metrics.record(:loss, result[:loss])
           # Decay epsilon
           epsilon = @initial_epsilon * (episodes - episode_number) / episodes
 

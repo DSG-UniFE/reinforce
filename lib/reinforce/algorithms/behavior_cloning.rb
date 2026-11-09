@@ -9,7 +9,9 @@ module Reinforce
     class BehaviorCloning
       include ::Reinforce::Agent
 
-      attr_reader :policy_model, :logs, :actions
+      attr_reader :policy_model, :metrics, :actions
+
+      alias_method :logs, :metrics
 
       def initialize(dataset, action_space: nil, learning_rate: 1e-3,
         network_config: ::Reinforce::Networks::Config.new, policy_model: nil)
@@ -25,7 +27,7 @@ module Reinforce
         @policy_model.train
         @optimizer = Torch::Optim::Adam.new(@policy_model.parameters, lr: learning_rate)
         @criterion = Torch::NN::CrossEntropyLoss.new
-        @logs = {loss: []}
+        @metrics = Reinforce::Metrics::Recorder.new
       end
 
       def train(epochs: 20, batch_size: 64)
@@ -36,7 +38,7 @@ module Reinforce
 
           logits = @policy_model.call(states)
           loss = @criterion.call(logits, action_indices)
-          @logs[:loss] << loss.item
+          @metrics.record(:loss, loss.item)
 
           @optimizer.zero_grad
           loss.backward

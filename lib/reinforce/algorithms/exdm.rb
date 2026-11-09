@@ -16,7 +16,9 @@ module Reinforce
     class ExDM
       include ::Reinforce::Agent
 
-      attr_reader :policy_model, :q_network, :q_target_network, :score_model, :logs, :sac
+      attr_reader :policy_model, :q_network, :q_target_network, :score_model, :metrics, :sac
+
+      alias_method :logs, :metrics
 
       def initialize(dataset = nil, action_space: nil, state_size: nil, learning_rate: 3e-4, discount_factor: 0.99,
         entropy_coefficient: 0.1, intrinsic_coefficient: 0.1, network_config: ::Reinforce::Networks::Config.new, noise_std: 0.1,
@@ -66,7 +68,7 @@ module Reinforce
         @q_target_network = @sac.q1_target_model
 
         preload_dataset! unless @dataset.nil?
-        @logs = {loss: [], policy_loss: [], q_loss: [], score_loss: [], intrinsic_bonus: []}
+        @metrics = Reinforce::Metrics::Recorder.new
       end
 
       def append_transition(state:, action:, reward:, next_state:, done:)
@@ -100,11 +102,11 @@ module Reinforce
         score_loss = update_score_model(state_actions)
         total = q_loss + policy_loss + score_loss
 
-        @logs[:loss] << total
-        @logs[:q_loss] << q_loss
-        @logs[:policy_loss] << policy_loss
-        @logs[:score_loss] << score_loss
-        @logs[:intrinsic_bonus] << intrinsic.mean.item
+        @metrics.record(:loss, total)
+        @metrics.record(:q_loss, q_loss)
+        @metrics.record(:policy_loss, policy_loss)
+        @metrics.record(:score_loss, score_loss)
+        @metrics.record(:intrinsic_bonus, intrinsic.mean.item)
 
         metrics.merge(score_loss:, intrinsic_bonus: intrinsic.mean.item, loss: total)
       end

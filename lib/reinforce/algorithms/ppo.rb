@@ -81,7 +81,9 @@ module Reinforce
     class PPO
       include ::Reinforce::Agent
 
-      attr_reader :logs
+      attr_reader :metrics
+
+      alias_method :logs, :metrics
       attr_accessor :agent, :optimizer
 
       def initialize(environment, learning_rate, policy = nil, value = nil, clip_param = 0.2, ppo_epochs = 10, minibatch_size = 32, discount_factor = 0.99,
@@ -98,7 +100,7 @@ module Reinforce
         @discount_factor = discount_factor
         @learning_rate = learning_rate
         # Create the optimizer
-        @logs = {loss: [], episode_reward: [], episode_length: []}
+        @metrics = Reinforce::Metrics::Recorder.new
         @optimizer = Torch::Optim::Adam.new([@agent.policy_model.parameters, @agent.value_model.parameters].flatten, lr: learning_rate, eps: 1e-5)
       end
 
@@ -255,8 +257,8 @@ module Reinforce
             rewards[step] = reward
             episode_reward += reward
             if next_done == true || step == num_steps - 1
-              @logs[:episode_reward] << episode_reward
-              @logs[:episode_length] << episode_lenth
+              @metrics.record(:episode_reward, episode_reward)
+              @metrics.record(:episode_length, episode_lenth)
               # warn "Episode: #{episode_number} Reward: #{episode_reward} Length: #{episode_lenth}"
               episode_lenth = 0
               next_obs = @environment.reset
@@ -331,7 +333,7 @@ module Reinforce
 
               # warn "entropy_loss: #{entropy_loss}"
               loss = pg_loss - @entropy_coefficient * entropy_loss + value_loss * 0.5
-              @logs[:loss] << loss.item
+              @metrics.record(:loss, loss.item)
 
               # Here another type of loss without entropy
               # loss = pg_loss + value_loss * 0.5

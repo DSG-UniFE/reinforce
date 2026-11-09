@@ -9,7 +9,9 @@ module Reinforce
     class SAC
       include ::Reinforce::Agent
 
-      attr_reader :logs, :policy_model, :q1_model, :q2_model, :q1_target_model, :q2_target_model, :actions, :batch_size
+      attr_reader :metrics, :policy_model, :q1_model, :q2_model, :q1_target_model, :q2_target_model, :actions, :batch_size
+
+      alias_method :logs, :metrics
 
       def initialize(environment, policy_model:, q1_model:, q2_model:, q1_target_model:, q2_target_model:,
         learning_rate: 3e-4, discount_factor: 0.99, entropy_coefficient: 0.1, auto_entropy_tuning: true,
@@ -57,17 +59,7 @@ module Reinforce
         end
 
         @replay = []
-        @logs = {
-          loss: [],
-          policy_loss: [],
-          q1_loss: [],
-          q2_loss: [],
-          alpha_loss: [],
-          entropy: [],
-          alpha: [],
-          episode_reward: [],
-          episode_length: []
-        }
+        @metrics = Reinforce::Metrics::Recorder.new
       end
 
       def predict(state, deterministic: true)
@@ -95,21 +87,14 @@ module Reinforce
             global_step += 1
 
             if @replay.size >= @batch_size && global_step >= @warmup_steps
-              metrics = train_step
-              @logs[:q1_loss] << metrics[:q1_loss]
-              @logs[:q2_loss] << metrics[:q2_loss]
-              @logs[:policy_loss] << metrics[:policy_loss]
-              @logs[:alpha_loss] << metrics[:alpha_loss]
-              @logs[:entropy] << metrics[:entropy]
-              @logs[:alpha] << metrics[:alpha]
-              @logs[:loss] << metrics[:loss]
+              @metrics.record_all(train_step)
             end
 
             break if done
           end
 
-          @logs[:episode_reward] << episode_reward
-          @logs[:episode_length] << episode_length
+          @metrics.record(:episode_reward, episode_reward)
+          @metrics.record(:episode_length, episode_length)
         end
       end
 

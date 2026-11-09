@@ -9,6 +9,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- `Reinforce::Metrics`: every algorithm now records its training metrics into
+  a `Metrics::Recorder`, exposed as `#metrics` (`#logs` remains as an alias
+  and reads the same way as before, e.g. `agent.metrics[:loss]`). Online
+  algorithms all record `episode_reward`, `episode_length` and `loss`. Output
+  goes to pluggable sinks: `Metrics::ConsoleSink` prints periodic one-line
+  summaries, `Metrics::JSONLinesSink` writes every value to a JSON-lines file,
+  and any `call(key, value, step)` object (e.g. a lambda) works as a sink.
 - Experimental offline-RL building blocks: `OfflineDataset`, fitted Q evaluation,
   behaviour cloning, and conservative Q-learning.
 - A discrete-action Soft Actor-Critic (SAC) implementation with twin critics,

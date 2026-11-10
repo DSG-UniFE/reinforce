@@ -5,6 +5,12 @@ source "https://rubygems.org"
 # Specify your gem's dependencies in reinforce.gemspec
 gemspec
 
+# Development pin: torch-rb compiles against exactly one LibTorch version,
+# and CI downloads the LibTorch matching this series (LIBTORCH_VERSION in
+# .github/workflows/ci.yml). Without it, every torch-rb release breaks CI.
+# The gemspec's own requirement stays open-ended for library users.
+gem "torch-rb", "~> 0.27.0"
+
 group :examples do
   gem "unicode_plot", ">= 0.0.5"
 end

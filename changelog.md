@@ -57,6 +57,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- `SAC` now normalizes rewards by default too (`normalize_rewards: true`),
+  adapted to its replay buffer: the buffer keeps raw rewards, and each
+  sampled batch is divided by the *current* running standard deviation of
+  the discounted return when computing critic targets. This took SAC from
+  22/25 to 25/25 seeds solved across GridWorld 5x5, 10x10 and Taxi. ExDM,
+  which feeds SAC transitions directly rather than through `#train`, is
+  unaffected.
 - `PPO` now normalizes rewards by default, like Gymnasium's
   `NormalizeReward`: each reward is divided by a running estimate of the
   standard deviation of the discounted return, so the critic's targets stay

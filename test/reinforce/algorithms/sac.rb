@@ -203,4 +203,81 @@ describe Reinforce::Algorithms::SAC do
 
     expect(agent.instance_variable_get(:@target_entropy)).to be_within(1e-12).of(0.3 * Math.log(2))
   end
+
+  describe "reward normalization" do
+    # A 1-dimensional environment rewarding 2.0 per step, terminating after
+    # 3 steps.
+    def three_step_environment
+      env = Object.new
+      steps = 0
+      env.define_singleton_method(:state_size) { 1 }
+      env.define_singleton_method(:actions) { %i[bad good] }
+      env.define_singleton_method(:reset) { [(steps = 0).to_f] }
+      env.define_singleton_method(:step) do |_action|
+        steps += 1
+        [[steps.to_f], 2.0, steps >= 3]
+      end
+      env
+    end
+
+    def build_normalizing_agent(**options)
+      Reinforce::Algorithms::SAC.new(
+        three_step_environment,
+        policy_model: build_network(1, 2), q1_model: build_network(1, 2), q2_model: build_network(1, 2),
+        q1_target_model: build_network(1, 2), q2_target_model: build_network(1, 2),
+        discount_factor: 0.5, batch_size: 4, warmup_steps: 100, **options
+      )
+    end
+
+    it "is on by default" do
+      expect(build_normalizing_agent.config.normalize_rewards).to be == true
+    end
+
+    it "leaves rewards unscaled when disabled" do
+      agent = build_normalizing_agent(normalize_rewards: false)
+      agent.train(episodes: 2, steps_per_episode: 3)
+
+      expect(agent.send(:reward_scale)).to be_within(1e-12).of(1.0)
+    end
+
+    it "scales by the running std of the per-episode discounted return, keeping raw rewards in the replay buffer" do
+      agent = build_normalizing_agent
+      agent.train(episodes: 2, steps_per_episode: 3)
+
+      # Discounted returns (gamma 0.5), reset each episode: 2, 3, 3.5, twice.
+      reference = Reinforce::RunningMeanStd.new
+      [2.0, 3.0, 3.5, 2.0, 3.0, 3.5].each { |discounted_return| reference.update(discounted_return) }
+
+      expect(agent.send(:reward_scale)).to be_within(1e-9).of(1.0 / Math.sqrt(reference.var + 1e-8))
+      expect(agent.sample_batch(4).map { |transition| transition[:reward] }.uniq).to be == [2.0]
+    end
+
+    it "leaves rewards unscaled when transitions only arrive via #append_transition" do
+      agent = build_normalizing_agent(normalize_rewards: true)
+      4.times { agent.append_transition(state: [0.0], action: :good, reward: 5.0, next_state: [0.0], done: true) }
+
+      expect(agent.send(:reward_scale)).to be_within(1e-12).of(1.0)
+    end
+
+    it "uses the scaled rewards in the critics' targets" do
+      TorchTestHelpers.with_torch_seed do
+        agent = build_normalizing_agent(normalize_rewards: true)
+        agent.train(episodes: 2, steps_per_episode: 3)
+        scale = agent.send(:reward_scale)
+        batch = Array.new(4) { {state: [0.0], action_index: 1, reward: 2.0, next_state: [0.0], done: 1.0} }
+        targets = []
+        mse = agent.instance_variable_get(:@mse)
+        mse.define_singleton_method(:call) do |prediction, target|
+          targets << target.to_a
+          super(prediction, target)
+        end
+
+        agent.train_step(batch:)
+
+        # Terminal transitions: the target is exactly the scaled reward.
+        expect(targets.first.all? { |target| (target - 2.0 * scale).abs < 1e-5 }).to be == true
+        expect(scale).not.to be_within(1e-3).of(1.0)
+      end
+    end
+  end
 end

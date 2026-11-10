@@ -135,4 +135,72 @@ describe Reinforce::Algorithms::SAC do
       end
     end
   end
+
+  describe "warmup" do
+    # Counts the actions the agent takes, and the updates it makes.
+    def recording_environment(taken)
+      env = Object.new
+      env.define_singleton_method(:state_size) { 1 }
+      env.define_singleton_method(:actions) { %i[bad good] }
+      env.define_singleton_method(:reset) { [0.0] }
+      env.define_singleton_method(:step) do |action_index|
+        taken << action_index
+        [[0.0], 0.0, false]
+      end
+      env
+    end
+
+    # A policy that always picks :bad (index 0) with near certainty.
+    def biased_policy
+      layer = Torch::NN::Linear.new(1, 2)
+      Torch::NN::Init.constant!(layer.weight, 0.0)
+      layer.bias.data.copy!(Torch.tensor([20.0, -20.0]))
+      Torch::NN::Sequential.new(layer)
+    end
+
+    it "acts uniformly at random and makes no updates during warmup, then follows the policy" do
+      TorchTestHelpers.with_torch_seed do
+        taken = []
+        agent = Reinforce::Algorithms::SAC.new(
+          recording_environment(taken),
+          policy_model: biased_policy,
+          q1_model: build_network(1, 2), q2_model: build_network(1, 2),
+          q1_target_model: build_network(1, 2), q2_target_model: build_network(1, 2),
+          batch_size: 4, warmup_steps: 40, auto_entropy_tuning: false, learning_rate: 0.0
+        )
+
+        agent.train(episodes: 1, steps_per_episode: 60)
+
+        expect(taken.first(40).count(1)).to be > 10
+        expect(taken.last(20).uniq).to be == [0]
+        # Updates start on the step that completes the warmup.
+        expect(agent.metrics[:loss].size).to be == 21
+      end
+    end
+
+    it "counts warmup across #train calls rather than restarting it" do
+      TorchTestHelpers.with_torch_seed do
+        taken = []
+        agent = Reinforce::Algorithms::SAC.new(
+          recording_environment(taken),
+          policy_model: biased_policy,
+          q1_model: build_network(1, 2), q2_model: build_network(1, 2),
+          q1_target_model: build_network(1, 2), q2_target_model: build_network(1, 2),
+          batch_size: 4, warmup_steps: 40, auto_entropy_tuning: false, learning_rate: 0.0
+        )
+
+        agent.train(episodes: 1, steps_per_episode: 40)
+        agent.train(episodes: 1, steps_per_episode: 20)
+
+        expect(taken.last(20).uniq).to be == [0]
+        expect(agent.metrics[:loss].size).to be == 21
+      end
+    end
+  end
+
+  it "targets 0.3 of the maximum entropy by default when tuning alpha" do
+    agent = build_agent
+
+    expect(agent.instance_variable_get(:@target_entropy)).to be_within(1e-12).of(0.3 * Math.log(2))
+  end
 end

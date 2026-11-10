@@ -40,6 +40,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   took PPO from 7/10 to 10/10 seeds solved (greedy policy, 5x5 and 10x10).
   The running statistics are kept across `#train` calls but not saved by
   `#save`. Adds `Reinforce::RunningMeanStd`.
+- `SAC`: new defaults `warmup_steps: 2_000` (was 100) and, with automatic
+  entropy tuning, a target entropy of `0.3 * log(|actions|)` (was 0.98, which
+  kept the policy nearly uniform). Together with the random warmup above,
+  SAC went from 1/3 to 9/10 seeds solved on fixed-layout Taxi and from 0/5
+  to 8/10 on a 10x10 GridWorld (greedy policy). The target-entropy default
+  also applies to `ExDM`, which builds on SAC.
 - `PPO`: the learning rate now actually anneals linearly to zero over
   training, as intended (Integer division made it constant). PPO with a low
   learning rate may need more rollouts than before; `examples/ppo_taxi.rb`'s
@@ -49,6 +55,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- `SAC`: the first `warmup_steps` environment steps now take uniformly
+  random actions (as in the reference SAC implementations) instead of
+  sampling the randomly initialized policy, and warmup is counted across
+  `#train` calls instead of restarting on each one.
 - `PPO`: an episode truncated by the end of a rollout now bootstraps from
   the state it reached, not from the environment's reset state.
 - `PPO`: `episode_reward` metrics are per episode; they used to accumulate

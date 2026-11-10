@@ -9,13 +9,23 @@ module Reinforce
     class SAC
       include ::Reinforce::Agent
 
+      # Default target entropy, as a fraction of the maximum (uniform-policy)
+      # entropy log(|actions|), for automatic entropy tuning. The original
+      # discrete-SAC paper used 0.98, which keeps the policy almost uniform:
+      # on Taxi, tuning then raised alpha until the entropy bonus outweighed
+      # the -1 step penalty, so wandering paid better than finishing and the
+      # greedy policy was arbitrary. Measured on GridWorld and Taxi (with the
+      # random-action warmup below), 0.98 and 0.89 failed most seeds, 0.6 was
+      # inconsistent on a 10x10 GridWorld, and 0.3 solved 22 of 25 seeds.
+      TARGET_ENTROPY_SCALE = 0.3
+
       attr_reader :metrics, :policy_model, :q1_model, :q2_model, :q1_target_model, :q2_target_model, :actions, :batch_size
 
       alias_method :logs, :metrics
 
       def initialize(environment, policy_model:, q1_model:, q2_model:, q1_target_model:, q2_target_model:,
         learning_rate: 3e-4, discount_factor: 0.99, entropy_coefficient: 0.1, auto_entropy_tuning: true,
-        target_entropy: nil, batch_size: 64, replay_size: 10_000, tau: 0.05, warmup_steps: 100,
+        target_entropy: nil, batch_size: 64, replay_size: 10_000, tau: 0.05, warmup_steps: 2_000,
         critic_updates_per_step: 1, policy_updates_per_step: 1, target_updates_per_step: 1)
         @environment = environment
         @actions = environment.actions
@@ -47,7 +57,7 @@ module Reinforce
         @mse = Torch::NN::MSELoss.new
         @auto_entropy_tuning = auto_entropy_tuning
         if @auto_entropy_tuning
-          @target_entropy = target_entropy || (0.98 * Math.log(@actions.size))
+          @target_entropy = target_entropy || (TARGET_ENTROPY_SCALE * Math.log(@actions.size))
           @log_alpha = Torch::NN::Parameter.new(
             Torch.tensor([Math.log(entropy_coefficient)], dtype: :float32)
           )
@@ -59,6 +69,7 @@ module Reinforce
         end
 
         @replay = []
+        @steps_taken = 0
         @metrics = Reinforce::Metrics::Recorder.new
       end
 
@@ -67,16 +78,19 @@ module Reinforce
         @actions[CategoricalDistribution.new(logits: logits).choose(deterministic: deterministic)]
       end
 
+      # The first `warmup_steps` environment steps (counted across all #train
+      # calls) take uniformly random actions and make no updates, as in the
+      # reference SAC implementations, so the replay buffer starts with
+      # diverse experience rather than whatever the randomly initialized --
+      # and typically biased -- policy happens to do.
       def train(episodes:, steps_per_episode:, **_kwargs)
-        global_step = 0
-
         episodes.times do
           state = @environment.reset
           episode_reward = 0.0
           episode_length = 0
 
           steps_per_episode.times do
-            action = select_action(state)
+            action = (@steps_taken < @warmup_steps) ? @actions.sample : select_action(state)
             action_index = @action_to_index.fetch(action)
             next_state, reward, done = @environment.step(action_index)
             store_transition(state, action, reward, next_state, done)
@@ -84,9 +98,9 @@ module Reinforce
             episode_reward += reward
             episode_length += 1
             state = next_state
-            global_step += 1
+            @steps_taken += 1
 
-            if @replay.size >= @batch_size && global_step >= @warmup_steps
+            if @replay.size >= @batch_size && @steps_taken >= @warmup_steps
               @metrics.record_all(train_step)
             end
 

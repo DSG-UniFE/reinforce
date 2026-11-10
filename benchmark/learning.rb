@@ -98,25 +98,40 @@ describe "learning regression benchmark" do
     )
   end
 
-  it "SAC solves a 5x5 GridWorld" do
+  def sac(environment)
+    Reinforce::Algorithms::SAC.new(
+      environment,
+      policy_model: small_network(environment),
+      q1_model: small_network(environment),
+      q2_model: small_network(environment),
+      q1_target_model: small_network(environment),
+      q2_target_model: small_network(environment),
+      learning_rate: 1e-3
+    )
+  end
+
+  it "SAC solves a 10x10 GridWorld" do
     expect_learning(
-      "SAC / GridWorld 5x5",
+      "SAC / GridWorld 10x10",
       seeds: [1, 2, 3],
-      environment: gridworld(5, 3),
-      agent: lambda do |environment|
-        Reinforce::Algorithms::SAC.new(
-          environment,
-          policy_model: small_network(environment),
-          q1_model: small_network(environment),
-          q2_model: small_network(environment),
-          q1_target_model: small_network(environment),
-          q2_target_model: small_network(environment),
-          learning_rate: 1e-3
-        )
-      end,
-      train: {episodes: 200, steps_per_episode: 50},
+      environment: gridworld(10, 5),
+      agent: ->(environment) { sac(environment) },
+      train: {episodes: 300, steps_per_episode: 150},
       eval_episodes: 1,
-      max_steps: 50,
+      max_steps: 150,
+      minimum_success_rate: 2.0 / 3
+    )
+  end
+
+  it "SAC solves fixed-layout Taxi" do
+    expect_learning(
+      "SAC / Taxi (fixed)",
+      seeds: [1, 2, 3],
+      environment: fixed_taxi,
+      agent: ->(environment) { sac(environment) },
+      train: {episodes: 300, steps_per_episode: 100},
+      eval_episodes: 1,
+      max_steps: 100,
       minimum_success_rate: 2.0 / 3
     )
   end

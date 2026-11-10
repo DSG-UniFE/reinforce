@@ -44,6 +44,14 @@ bundle exec sus
 
 To run a subset, pass file paths. One gotcha: most test files assume `lib/reinforce.rb` has already loaded (e.g. so `Reinforce::Agent`/`Reinforce::Environment` exist), which only happens when the whole suite loads together. Running a single file directly, e.g. `bundle exec sus test/reinforce/algorithms/sarsa.rb`, fails with an unrelated `NameError: uninitialized constant Reinforce::Agent` -- that's this load-order gap, not a real problem with the file. If you need to focus on one area, it's usually faster to run the full suite and read the relevant part of the output.
 
+## Learning benchmark
+
+```bash
+bundle exec sus benchmark/learning.rb
+```
+
+The tests above check that the code runs; this checks that the algorithms still *learn*. Each case trains an algorithm from scratch under several fixed seeds on GridWorld or Taxi, runs the greedy policy, and requires a minimum number of seeds to reach the goal. It takes about a minute and a half, so it is kept out of the default `sus` run; CI runs it as a separate job. When a case fails, it prints a per-seed report (success, return, steps, training time). See the comment at the top of `benchmark/learning.rb` for how the budgets and thresholds were chosen before changing them.
+
 ## Linting
 
 ```bash

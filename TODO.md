@@ -5,7 +5,8 @@ Planned changes to `reinforce`, roughly in the order we intend to tackle them. I
 ## Consolidation of the existing algorithms
 
 - **Experiment tracker integration.** An MLflow sink for `Reinforce::Metrics` (via MLflow's REST API, so no new gem dependency), and a way to record each run's hyperparameters alongside its metrics, which builds on the config objects below.
-- **Learning regression benchmark.** Train PPO, DQN and SAC on GridWorld and Taxi for a fixed episode budget across several seeds, and check a minimum reward or success-rate threshold. Tag it as a slow test so the default `sus` run stays fast, and run it in CI as a separate step.
+- **Make PPO reliable on GridWorld.** It fails one seed in five at every entropy coefficient tried (0.01, 0.03, 0.1), while DQN and SAC solve the same layouts; once fixed, tighten its threshold in `benchmark/learning.rb`.
+- **SAC on Taxi.** Discrete SAC solves fixed-layout Taxi on only one seed in three at a 300-episode budget, and takes ~27s per seed; investigate before adding it to the learning benchmark.
 - **Hyperparameter config objects.** Replace the long positional argument lists in each algorithm's constructor with per-algorithm `Data.define` configs (e.g. `DQNConfig`), so a full hyperparameter set is one constructible, loggable, diffable value.
 - **Device support everywhere.** Pass `device:` through the tensor construction call sites in SAC, PPO, `BehaviorCloning`, `ConservativeQLearning`, `ExDM` and `MonteCarloPolicyGradient`, following the pattern already used in `QFunctionANN` and `DQN`.
 - **Close the remaining coverage gaps,** starting with `ppo.rb` and the environments (`taxi.rb`, `game_2048.rb`, `1d_walk.rb`), plus `experience.rb`.

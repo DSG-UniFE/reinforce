@@ -50,7 +50,7 @@ To run a subset, pass file paths. One gotcha: most test files assume `lib/reinfo
 bundle exec sus benchmark/learning.rb
 ```
 
-The tests above check that the code runs; this checks that the algorithms still *learn*. Each case trains an algorithm from scratch under several fixed seeds on GridWorld or Taxi, runs the greedy policy, and requires a minimum number of seeds to reach the goal. It takes about a minute and a half, so it is kept out of the default `sus` run; CI runs it as a separate job. When a case fails, it prints a per-seed report (success, return, steps, training time). See the comment at the top of `benchmark/learning.rb` for how the budgets and thresholds were chosen before changing them.
+The tests above check that the code runs; this checks that the algorithms still *learn*. Each case trains an algorithm from scratch under several fixed seeds on GridWorld or Taxi, runs the greedy policy, and requires a minimum number of seeds to reach the goal. It takes about two minutes, so it is kept out of the default `sus` run; CI runs it as a separate job. When a case fails, it prints a per-seed report (success, return, steps, training time). See the comment at the top of `benchmark/learning.rb` for how the budgets and thresholds were chosen before changing them.
 
 ## Linting
 

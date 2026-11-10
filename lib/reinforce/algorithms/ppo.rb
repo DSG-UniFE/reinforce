@@ -3,6 +3,7 @@
 require_relative "../experience"
 require_relative "../categorical_distribution"
 require_relative "../networks"
+require_relative "../running_mean_std"
 require "torch"
 
 module Reinforce
@@ -81,15 +82,37 @@ module Reinforce
     class PPO
       include ::Reinforce::Agent
 
+      # Added to the return variance before taking its square root when
+      # normalizing rewards, as in Gymnasium's NormalizeReward.
+      REWARD_NORMALIZATION_EPSILON = 1e-8
+
       attr_reader :metrics
 
       alias_method :logs, :metrics
       attr_accessor :agent, :optimizer
 
       def initialize(environment, learning_rate, policy = nil, value = nil, clip_param = 0.2, ppo_epochs = 10, minibatch_size = 32, discount_factor = 0.99,
-        network_config: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG, entropy_coefficient: 0.01)
+        network_config: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG, entropy_coefficient: 0.01,
+        max_grad_norm: clip_param, normalize_rewards: true)
         @environment = environment
+        # Reward normalization (Gymnasium's NormalizeReward): divide each
+        # reward by a running estimate of the standard deviation of the
+        # discounted return, so the critic's targets stay near unit scale
+        # whatever the environment's reward scale. Without it, returns in
+        # the hundreds (as in GridWorld) leave the critic far behind them,
+        # and its large value-loss gradients -- clipped jointly with the
+        # policy's -- shrink every policy update. Rewards are only scaled,
+        # never shifted, so their sign and the optimal policy are unchanged.
+        # The statistics persist across #train calls, but not across
+        # #save/#load. `episode_reward` metrics always report raw rewards.
+        @normalize_rewards = normalize_rewards
+        @return_rms = Reinforce::RunningMeanStd.new
+        @discounted_return = 0.0
         @entropy_coefficient = entropy_coefficient
+        # Gradient-norm clipping threshold. It used to be hardwired to
+        # clip_param (PPO's ratio-clipping range, an unrelated quantity);
+        # it defaults to the same value so behavior is unchanged.
+        @max_grad_norm = max_grad_norm
         @agent = ActorCriticNetwork.new(
           environment.state_size, environment.actions.size, policy, value, network_config: network_config
         )
@@ -169,6 +192,27 @@ module Reinforce
         indices.each_slice(@minibatch_size).to_a
       end
 
+      # Convert an environment observation to the float tensor the networks
+      # expect. Non-mutating: this used to `map!(&:to_f)` the array returned
+      # by #reset in place, which silently rewrote the environment's own
+      # state (and only converted reset observations, so an environment
+      # whose #step returns Integer observations crashed the policy).
+      def observation_tensor(observation)
+        Torch.tensor(observation.map(&:to_f), dtype: :float32)
+      end
+
+      # Scale one reward by the running standard deviation of the discounted
+      # return it contributes to (see the comment in #initialize). Unlike
+      # Gymnasium, which multiplies the accumulator by (1 - terminated) as
+      # part of the terminal step's own update, the accumulator is reset
+      # *after* an episode ends (in #train), so a terminal reward is still
+      # added to its own episode's return.
+      def normalize_reward(reward)
+        @discounted_return = @discounted_return * @discount_factor + reward
+        @return_rms.update(@discounted_return)
+        reward / Math.sqrt(@return_rms.var + REWARD_NORMALIZATION_EPSILON)
+      end
+
       def build_rollout_buffers(num_steps)
         {
           obs: Torch.zeros(num_steps, @environment.state_size),
@@ -221,20 +265,22 @@ module Reinforce
         values = buffers[:values]
 
         global_step = 0
-        next_obs = @environment.reset
-        next_obs = Torch.tensor(next_obs.map!(&:to_f))
+        next_obs = observation_tensor(@environment.reset)
         next_done = false
         episode_lenth = 0
+        episode_reward = 0
         # Loop over the episodes
 
         1.upto(episodes) do |episode_number|
           progress = episode_number.to_f / episodes * 100
           progress_output&.print "\rTraining: #{progress.round(2)}%" if episode_number % 10 == 0
-          # Anneal the learning rate
-          fract = 1.0 - (episode_number - 1) / episodes
+          # Anneal the learning rate linearly towards zero. fdiv, not `/`:
+          # with Integer division this was 0 for every rollout, so the
+          # learning rate never annealed at all.
+          fract = 1.0 - (episode_number - 1).fdiv(episodes)
           lrnow = @learning_rate * fract
           @optimizer.param_groups[0][:lr] = lrnow
-          episode_reward = 0
+          bootstrap_obs = nil
 
           num_steps.times do |step|
             global_step += 1
@@ -254,17 +300,21 @@ module Reinforce
             logprobs[step] = prob
 
             next_obs, reward, next_done = @environment.step(action.to_i)
-            rewards[step] = reward
+            rewards[step] = @normalize_rewards ? normalize_reward(reward) : reward
             episode_reward += reward
             if next_done == true || step == num_steps - 1
               @metrics.record(:episode_reward, episode_reward)
               @metrics.record(:episode_length, episode_lenth)
-              # warn "Episode: #{episode_number} Reward: #{episode_reward} Length: #{episode_lenth}"
+              episode_reward = 0
               episode_lenth = 0
+              @discounted_return = 0.0
+              # An episode cut short by the end of the rollout did not
+              # terminate: its last transition must bootstrap from the
+              # state it actually reached, not from the reset state below.
+              bootstrap_obs = observation_tensor(next_obs) unless next_done
               next_obs = @environment.reset
-              next_obs.map!(&:to_f)
             end
-            next_obs = Torch.tensor(next_obs)
+            next_obs = observation_tensor(next_obs)
             # TODO log additional information here, e.g. rewards, etc.
             # everything we would to log somewhere
           end
@@ -275,7 +325,7 @@ module Reinforce
 
           # Calculate the advantages and returns
           Torch.no_grad do
-            next_value = @agent.get_value(next_obs).reshape(-1)[0]
+            next_value = @agent.get_value(bootstrap_obs || next_obs).reshape(-1)[0]
             advantages, returns = compute_gae(rewards, values, dones, next_value, next_done)
           end
 
@@ -343,7 +393,7 @@ module Reinforce
               # warn "loss: #{loss}"
               loss.backward
               # Gradient clipping calculation
-              clip_grad_norm_(@agent.parameters, @clip_param)
+              clip_grad_norm_(@agent.parameters, @max_grad_norm)
 
               @optimizer.step
             end

@@ -97,4 +97,119 @@ describe Reinforce::Algorithms::PPO do
     expect(environment.actions).to be(:include?, array_action)
     expect(tensor_action).to be == array_action
   end
+
+  # A one-dimensional environment whose observation is the number of steps
+  # taken since the last reset, rewarding 1.0 per step and terminating after
+  # `episode_length` steps (never, if nil).
+  def counting_environment(episode_length: nil, observation_type: Float)
+    env = Object.new
+    steps = 0
+    observe = ->(count) { [(observation_type == Float) ? count.to_f : count] }
+    env.define_singleton_method(:state_size) { 1 }
+    env.define_singleton_method(:actions) { %i[left right] }
+    env.define_singleton_method(:reset) { observe.call(steps = 0) }
+    env.define_singleton_method(:step) do |_action|
+      steps += 1
+      [observe.call(steps), 1.0, !episode_length.nil? && steps >= episode_length, {}]
+    end
+    env
+  end
+
+  it "trains on Integer observations without altering the environment's own arrays" do
+    # Regression: only #reset observations were converted to floats (by
+    # mutating the returned array in place), so Integer observations from
+    # #step reached the policy as a Long tensor and crashed it.
+    environment = counting_environment(episode_length: 3, observation_type: Integer)
+    initial = environment.reset
+    ppo = Reinforce::Algorithms::PPO.new(environment, 0.001, nil, nil, 0.2, 1, 4)
+
+    ppo.train(episodes: 1, steps_per_episode: 6)
+
+    expect(ppo.metrics[:episode_length]).to be == [3, 3]
+    expect(initial).to be == [0]
+    expect(initial.first).to be_a(Integer)
+  end
+
+  it "records each episode's own reward, not a running total across a rollout" do
+    # Regression: episode_reward was only reset once per rollout, so the
+    # second and later episodes in a rollout logged cumulative rewards.
+    ppo = Reinforce::Algorithms::PPO.new(counting_environment(episode_length: 3), 0.001, nil, nil, 0.2, 1, 4)
+    ppo.train(episodes: 1, steps_per_episode: 9)
+
+    expect(ppo.metrics[:episode_reward]).to be == [3.0, 3.0, 3.0]
+    expect(ppo.metrics[:episode_length]).to be == [3, 3, 3]
+  end
+
+  it "anneals the learning rate linearly over the rollouts" do
+    # Regression: the annealing fraction used Integer division, which is
+    # zero for every rollout, so the learning rate never changed.
+    ppo = Reinforce::Algorithms::PPO.new(counting_environment, 0.01, nil, nil, 0.2, 1, 4)
+    seen = []
+    optimizer = ppo.optimizer
+    optimizer.define_singleton_method(:step) do |*args|
+      seen << param_groups[0][:lr]
+      super(*args)
+    end
+
+    ppo.train(episodes: 4, steps_per_episode: 4)
+
+    expect(seen.uniq.map { |lr| lr.round(6) }).to be == [0.01, 0.0075, 0.005, 0.0025]
+  end
+
+  it "bootstraps a rollout-truncated episode from the state it reached, not the reset state" do
+    # Regression: the environment was reset before the bootstrap value was
+    # computed, so a truncated episode bootstrapped from the start state.
+    ppo = Reinforce::Algorithms::PPO.new(counting_environment, 0.001, nil, nil, 0.2, 1, 4)
+    bootstrapped_from = []
+    network = ppo.agent
+    network.define_singleton_method(:get_value) do |x|
+      bootstrapped_from << x.to_a
+      super(x)
+    end
+
+    ppo.train(episodes: 1, steps_per_episode: 5)
+
+    expect(bootstrapped_from).to be == [[5.0]]
+  end
+
+  describe "reward normalization" do
+    # Records the rewards PPO stores for the update, by spying on GAE.
+    def stored_rewards(ppo, episodes:, steps_per_episode:)
+      seen = []
+      ppo.define_singleton_method(:compute_gae) do |rewards, *rest|
+        seen.concat(rewards.to_a)
+        super(rewards, *rest)
+      end
+      ppo.train(episodes:, steps_per_episode:)
+      seen
+    end
+
+    it "is on by default and divides rewards by the running std of the discounted return" do
+      ppo = Reinforce::Algorithms::PPO.new(counting_environment(episode_length: 3), 0.001, nil, nil, 0.2, 1, 4, 0.5)
+      rewards = stored_rewards(ppo, episodes: 1, steps_per_episode: 6)
+
+      # Reference computation, with the accumulator reset after each
+      # 3-step episode: discounted returns 1, 1.5, 1.75, 1, 1.5, 1.75.
+      reference = Reinforce::RunningMeanStd.new
+      expected = [1.0, 1.5, 1.75, 1.0, 1.5, 1.75].map do |discounted_return|
+        reference.update(discounted_return)
+        1.0 / Math.sqrt(reference.var + Reinforce::Algorithms::PPO::REWARD_NORMALIZATION_EPSILON)
+      end
+      expect(rewards.zip(expected).all? { |actual, wanted| (actual - wanted).abs < 1e-5 }).to be == true
+      expect(rewards.all? { |reward| reward > 1.0 }).to be == true
+    end
+
+    it "keeps raw rewards in the episode_reward metric" do
+      ppo = Reinforce::Algorithms::PPO.new(counting_environment(episode_length: 3), 0.001, nil, nil, 0.2, 1, 4)
+      ppo.train(episodes: 1, steps_per_episode: 6)
+
+      expect(ppo.metrics[:episode_reward]).to be == [3.0, 3.0]
+    end
+
+    it "stores raw rewards when disabled" do
+      ppo = Reinforce::Algorithms::PPO.new(counting_environment, 0.001, nil, nil, 0.2, 1, 4, normalize_rewards: false)
+
+      expect(stored_rewards(ppo, episodes: 1, steps_per_episode: 4)).to be == [1.0, 1.0, 1.0, 1.0]
+    end
+  end
 end

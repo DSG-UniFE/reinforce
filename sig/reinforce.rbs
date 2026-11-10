@@ -37,6 +37,18 @@ module Reinforce
     def render: (?IO output_stream) -> void
   end
 
+  # Running mean and variance of a stream of scalars (parallel-variance
+  # updates), as in Gymnasium's RunningMeanStd.
+  class RunningMeanStd
+    attr_reader mean: Float
+    attr_reader var: Float
+    attr_reader count: Float
+
+    def initialize: (?epsilon: Float) -> void
+    def update: (Array[Numeric] | Numeric values) -> self
+    def std: () -> Float
+  end
+
   module Metrics
     # Anything responding to `call(key, value, step)`, e.g. a lambda.
     interface _Sink

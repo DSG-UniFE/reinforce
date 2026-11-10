@@ -32,6 +32,31 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- `PPO` now normalizes rewards by default, like Gymnasium's
+  `NormalizeReward`: each reward is divided by a running estimate of the
+  standard deviation of the discounted return, so the critic's targets stay
+  near unit scale whatever the environment's reward scale. Pass
+  `normalize_rewards: false` for the previous behavior. On GridWorld this
+  took PPO from 7/10 to 10/10 seeds solved (greedy policy, 5x5 and 10x10).
+  The running statistics are kept across `#train` calls but not saved by
+  `#save`. Adds `Reinforce::RunningMeanStd`.
+- `PPO`: the learning rate now actually anneals linearly to zero over
+  training, as intended (Integer division made it constant). PPO with a low
+  learning rate may need more rollouts than before; `examples/ppo_taxi.rb`'s
+  settings still learn.
+- `PPO`: gradient-norm clipping now has its own `max_grad_norm:` option
+  instead of reusing `clip_param` (the default, 0.2, is unchanged).
+
+### Fixed
+
+- `PPO`: an episode truncated by the end of a rollout now bootstraps from
+  the state it reached, not from the environment's reset state.
+- `PPO`: `episode_reward` metrics are per episode; they used to accumulate
+  across all episodes within a rollout.
+- `PPO`: Integer observations returned by `#step` no longer crash training,
+  and `#train` no longer mutates the observation arrays returned by the
+  environment's `#reset`.
+
 - `DQN`, `PPO` and `SARSA` no longer print training progress by default; pass
   `progress_output: $stdout` to `#train` to get the old `Training: N%` output.
 - `Taxi#step` no longer prints "Passenger picked up!"/"Task Completed!" to

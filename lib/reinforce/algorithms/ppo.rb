@@ -116,9 +116,13 @@ module Reinforce
       alias_method :logs, :metrics
       attr_accessor :agent, :optimizer
 
-      def initialize(environment, config = nil, policy_model: nil, value_model: nil, **hyperparameters)
+      # @parameter intrinsic_reward [#observe, #call, #train, nil] an
+      #   exploration bonus added to each reward as rollouts are collected
+      #   (see Reinforce::IntrinsicRewards).
+      def initialize(environment, config = nil, policy_model: nil, value_model: nil, intrinsic_reward: nil, **hyperparameters)
         @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
         @environment = environment
+        @intrinsic_reward = intrinsic_reward
         # Reward normalization (Gymnasium's NormalizeReward): divide each
         # reward by a running estimate of the standard deviation of the
         # discounted return, so the critic's targets stay near unit scale
@@ -290,6 +294,7 @@ module Reinforce
         next_done = false
         episode_lenth = 0
         episode_reward = 0
+        episode_bonus = 0.0
         # Loop over the episodes
 
         1.upto(episodes) do |episode_number|
@@ -302,6 +307,7 @@ module Reinforce
           lrnow = @learning_rate * fract
           @optimizer.param_groups[0][:lr] = lrnow
           bootstrap_obs = nil
+          rollout_next_states = []
 
           num_steps.times do |step|
             global_step += 1
@@ -321,12 +327,22 @@ module Reinforce
             logprobs[step] = prob
 
             next_obs, reward, next_done = @environment.step(action.to_i)
-            rewards[step] = @normalize_rewards ? normalize_reward(reward) : reward
+            training_reward = reward
+            if @intrinsic_reward
+              @intrinsic_reward.observe(next_obs)
+              rollout_next_states << next_obs
+              bonus = @intrinsic_reward.call([next_obs]).first
+              episode_bonus += bonus
+              training_reward += bonus
+            end
+            rewards[step] = @normalize_rewards ? normalize_reward(training_reward) : training_reward
             episode_reward += reward
             if next_done == true || step == num_steps - 1
               @metrics.record(:episode_reward, episode_reward)
               @metrics.record(:episode_length, episode_lenth)
+              @metrics.record(:intrinsic_reward, episode_bonus) if @intrinsic_reward
               episode_reward = 0
+              episode_bonus = 0.0
               episode_lenth = 0
               @discounted_return = 0.0
               # An episode cut short by the end of the rollout did not
@@ -336,9 +352,8 @@ module Reinforce
               next_obs = @environment.reset
             end
             next_obs = observation_tensor(next_obs)
-            # TODO log additional information here, e.g. rewards, etc.
-            # everything we would to log somewhere
           end
+          @intrinsic_reward&.train(rollout_next_states)
 
           # calculate the advantages
           returns = nil

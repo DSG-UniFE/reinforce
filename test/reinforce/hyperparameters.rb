@@ -54,6 +54,9 @@ describe Reinforce::Hyperparameters do
     Reinforce::Algorithms::ConservativeQLearning => [
       ->(config, **hp) { Reinforce::Algorithms::ConservativeQLearning.new(dataset, config, **hp) }, :alpha, 0.5
     ],
+    Reinforce::IntrinsicRewards::CountBased => [
+      ->(config, **hp) { Reinforce::IntrinsicRewards::CountBased.new(config, **hp) }, :coefficient, 0.5
+    ],
     Reinforce::Algorithms::ExDM => [->(config, **hp) { Reinforce::Algorithms::ExDM.new(dataset, config, **hp) }, :noise_std, 0.5]
   }
 

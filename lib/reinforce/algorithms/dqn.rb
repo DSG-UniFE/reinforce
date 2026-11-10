@@ -68,9 +68,14 @@ module Reinforce
 
       alias_method :logs, :metrics
 
-      def initialize(environment, config = nil, q_function_model: nil, q_function_model_target: nil, **hyperparameters)
+      # @parameter intrinsic_reward [#observe, #call, #train, nil] an
+      #   exploration bonus added to sampled rewards (see
+      #   Reinforce::IntrinsicRewards).
+      def initialize(environment, config = nil, q_function_model: nil, q_function_model_target: nil, intrinsic_reward: nil,
+        **hyperparameters)
         @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
         @environment = environment
+        @intrinsic_reward = intrinsic_reward
         @double_dqn = @config.double_dqn
         @q_function_model = q_function_model || build_q_function(environment)
         @q_function_model_target = q_function_model_target || build_q_function(environment)
@@ -123,6 +128,7 @@ module Reinforce
         actions_left = steps_per_episode
         episode_length = 0
         episode_reward = 0
+        episode_bonus = 0.0
 
         # Training loop
         1.upto(total_steps) do
@@ -137,6 +143,10 @@ module Reinforce
           actions_left -= 1
           episode_length += 1
           episode_reward += reward
+          if @intrinsic_reward
+            @intrinsic_reward.observe(next_state)
+            episode_bonus += @intrinsic_reward.call([next_state]).first
+          end
 
           # Store the experience in the replay memory
           @prioritized_experience_replay.update(state, action, next_state, reward, done)
@@ -148,7 +158,7 @@ module Reinforce
             # Sample a minibatch of experiences from the replay memory
             # Update Q function every @update_frequency_for_q steps
             if (global_step % @update_frequency_for_q).zero?
-              experience = @prioritized_experience_replay.sample(minibatch_size)
+              experience = with_intrinsic_reward(@prioritized_experience_replay.sample(minibatch_size))
               result = @q_function_model.update(
                 experience,
                 target: @q_function_model_target,
@@ -176,7 +186,9 @@ module Reinforce
             state = @environment.reset
             @metrics.record(:episode_reward, episode_reward)
             @metrics.record(:episode_length, episode_length)
+            @metrics.record(:intrinsic_reward, episode_bonus) if @intrinsic_reward
             episode_reward = 0
+            episode_bonus = 0.0
             episode_length = 0
           end
 
@@ -200,6 +212,16 @@ module Reinforce
       end
 
       private
+
+      # The replay buffer stores raw rewards; the bonus is added here, under
+      # the current statistics, each time a batch is sampled.
+      def with_intrinsic_reward(experience)
+        return experience unless @intrinsic_reward
+
+        @intrinsic_reward.train(experience[:next_state])
+        bonuses = @intrinsic_reward.call(experience[:next_state])
+        experience.merge(reward: experience[:reward].zip(bonuses).map { |reward, bonus| reward + bonus })
+      end
 
       def build_q_function(environment)
         architecture = if @config.dueling

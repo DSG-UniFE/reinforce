@@ -12,10 +12,12 @@ require_relative "support/learning_benchmark"
 # It lives outside test/ so the default `bundle exec sus` run stays fast;
 # CI runs it as a separate job.
 #
-# Budgets and thresholds were calibrated on 2026-11-09/10 (macOS, Apple
-# Silicon, one Torch thread). Every case solved all of its seeds there;
-# thresholds allow one seed fewer, because Torch results are only
-# reproducible per platform, and CI runs on Linux.
+# Budgets were calibrated on 2026-11-09/10 (macOS, Apple Silicon, one
+# Torch thread), where every case solved all of its seeds; after CI on
+# Linux passed too, the thresholds were tightened to every seed. Torch
+# results are only reproducible per platform, so the per-seed report is
+# printed on every run (not just on failure) to make cross-platform
+# differences visible.
 #
 # If a change makes a case fail, look at the per-seed report it prints
 # before touching the threshold: a seed that used to reach the goal in the
@@ -42,6 +44,7 @@ describe "learning regression benchmark" do
     results = LearningBenchmark.run(**options)
     report = LearningBenchmark.report(name, results)
     inform(report)
+    warn(report)
 
     expect(LearningBenchmark.mean_success_rate(results)).to be >= minimum_success_rate
   end
@@ -55,7 +58,7 @@ describe "learning regression benchmark" do
       train: {episodes: 300, steps_per_episode: 150},
       eval_episodes: 1,
       max_steps: 150,
-      minimum_success_rate: 2.0 / 3
+      minimum_success_rate: 1.0
     )
   end
 
@@ -68,7 +71,7 @@ describe "learning regression benchmark" do
       train: {episodes: 300, steps_per_episode: 100},
       eval_episodes: 1,
       max_steps: 100,
-      minimum_success_rate: 2.0 / 3
+      minimum_success_rate: 1.0
     )
   end
 
@@ -81,7 +84,7 @@ describe "learning regression benchmark" do
       train: {episodes: 300, steps_per_episode: 125},
       eval_episodes: 1,
       max_steps: 100,
-      minimum_success_rate: 2.0 / 3
+      minimum_success_rate: 1.0
     )
   end
 
@@ -94,7 +97,7 @@ describe "learning regression benchmark" do
       train: {episodes: 300, steps_per_episode: 150},
       eval_episodes: 1,
       max_steps: 150,
-      minimum_success_rate: 2.0 / 3
+      minimum_success_rate: 1.0
     )
   end
 
@@ -119,7 +122,7 @@ describe "learning regression benchmark" do
       train: {episodes: 300, steps_per_episode: 150},
       eval_episodes: 1,
       max_steps: 150,
-      minimum_success_rate: 2.0 / 3
+      minimum_success_rate: 1.0
     )
   end
 
@@ -132,7 +135,7 @@ describe "learning regression benchmark" do
       train: {episodes: 300, steps_per_episode: 100},
       eval_episodes: 1,
       max_steps: 100,
-      minimum_success_rate: 2.0 / 3
+      minimum_success_rate: 1.0
     )
   end
 end

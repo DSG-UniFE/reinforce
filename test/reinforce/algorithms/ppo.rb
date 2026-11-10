@@ -212,4 +212,27 @@ describe Reinforce::Algorithms::PPO do
       expect(stored_rewards(ppo, episodes: 1, steps_per_episode: 4)).to be == [1.0, 1.0, 1.0, 1.0]
     end
   end
+
+  describe "intrinsic reward" do
+    it "adds the bonus for each reached state to the rewards it learns from, keeping metrics extrinsic" do
+      bonus = Reinforce::IntrinsicRewards::CountBased.new(coefficient: 1.0)
+      ppo = Reinforce::Algorithms::PPO.new(
+        counting_environment(episode_length: 2), ppo_epochs: 1, minibatch_size: 4, normalize_rewards: false, intrinsic_reward: bonus
+      )
+      learned = []
+      ppo.define_singleton_method(:compute_gae) do |rewards, *rest|
+        learned.concat(rewards.to_a)
+        super(rewards, *rest)
+      end
+
+      ppo.train(episodes: 1, steps_per_episode: 4)
+
+      # States 1, 2, 1, 2: the second visit to each pays 1/sqrt(2).
+      expected = [2.0, 2.0, 1 + 1 / Math.sqrt(2), 1 + 1 / Math.sqrt(2)]
+      expect(learned.zip(expected).all? { |actual, wanted| (actual - wanted).abs < 1e-5 }).to be == true
+      expect(ppo.metrics[:episode_reward]).to be == [2.0, 2.0]
+      expect(ppo.metrics[:intrinsic_reward].size).to be == 2
+      expect(bonus.count([1.0])).to be == 2
+    end
+  end
 end

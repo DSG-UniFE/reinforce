@@ -34,6 +34,30 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- `GridWorld` takes `observation: :one_hot` (a `size * size` vector with a 1.0
+  at the agent's cell) besides the default `:coordinates`; positions
+  (`#state`, `#obstacles`, `#reachable_states`) are unchanged. With one-hot
+  observations a count-based bonus raises the four-rooms coverage of all
+  three of PPO (0.95-0.97), DQN (0.75-0.80) and SAC (0.86-0.93).
+- Intrinsic rewards (exploration bonuses): `Reinforce::IntrinsicRewards`
+  defines a small interface (`#observe`, `#call`, `#train`), and
+  `IntrinsicRewards::CountBased` implements the count-based bonus
+  coefficient / sqrt(N(s)). `PPO`, `DQN` and `SAC` take one as
+  `intrinsic_reward:`; PPO adds it while collecting rollouts, DQN and SAC
+  when sampling from replay (so the bonus reflects current counts), and all
+  record it as an `intrinsic_reward` metric while `episode_reward` stays
+  extrinsic. On the four-rooms exploration benchmark it raises PPO's state
+  coverage from 0.37-0.55 to 0.86-0.93 (DQN: 0.62-0.83 to 0.68-0.79; SAC is
+  unaffected so far).
+- Exploration testbed: `GridWorld` takes `reward: :sparse` (+1 only at the
+  goal) besides the default `:dense`, `GridWorld.four_rooms` builds the
+  classic four-rooms layout (sparse by default), and `GridWorld#reachable_states`
+  lists the cells reachable from the start. New environment wrappers:
+  `Reinforce::Wrappers::RewardFree` (zero reward, original in
+  `info[:extrinsic_reward]`) for reward-free pretraining, and
+  `Reinforce::Wrappers::StateCoverage`, which measures exploration (distinct
+  states visited, and coverage of the reachable states) for any agent.
+  A new `benchmark/exploration.rb` runs in CI.
 - `Reinforce::Metrics`: every algorithm now records its training metrics into
   a `Metrics::Recorder`, exposed as `#metrics` (`#logs` remains as an alias
   and reads the same way as before, e.g. `agent.metrics[:loss]`). Online

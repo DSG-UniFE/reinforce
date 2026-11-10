@@ -92,4 +92,93 @@ describe Reinforce::Environments::GridWorld do
     gridworld.render(out)
     expect(out.string).to be == gridworld_render
   end
+
+  describe "sparse reward" do
+    let(:sparse) { Reinforce::Environments::GridWorld.new(3, [0, 0], [0, 2], [], reward: :sparse) }
+
+    it "gives 0 for ordinary moves and bumps, and 1 for reaching the goal" do
+      sparse.reset
+
+      expect(sparse.step(:up)[1]).to be == 0
+      expect(sparse.step(:right)[1]).to be == 0
+      _state, reward, done = sparse.step(:right)
+      expect([reward, done]).to be == [1, true]
+    end
+
+    it "keeps the dense reward by default" do
+      dense = Reinforce::Environments::GridWorld.new(3, [0, 0], [0, 2], [])
+      dense.reset
+
+      expect(dense.step(:right)[1]).to be == -1
+    end
+
+    it "rejects unknown reward schemes" do
+      expect { Reinforce::Environments::GridWorld.new(3, [0, 0], [0, 2], [], reward: :shaped) }.to raise_exception(ArgumentError)
+    end
+  end
+
+  describe ".four_rooms" do
+    let(:rooms) { Reinforce::Environments::GridWorld.four_rooms(size: 11) }
+
+    it "builds walls through the middle with one doorway per wall segment, sparse by default" do
+      expect(rooms.reward).to be == :sparse
+      expect(rooms.obstacles.size).to be == 21 - 4
+      [[2, 5], [8, 5], [5, 2], [5, 8]].each { |doorway| expect(rooms.obstacles).not.to be(:include?, doorway) }
+      expect(rooms.obstacles).to be(:include?, [5, 5])
+      expect([rooms.start, rooms.goal]).to be == [[0, 0], [10, 10]]
+    end
+
+    it "keeps every free cell reachable from the start, goal included" do
+      expect(rooms.reachable_states.size).to be == 11 * 11 - rooms.obstacles.size
+      expect(rooms.reachable_states).to be(:include?, rooms.goal)
+    end
+
+    it "rejects sizes too small for four rooms" do
+      expect { Reinforce::Environments::GridWorld.four_rooms(size: 4) }.to raise_exception(ArgumentError)
+    end
+  end
+
+  it "finds the reachable states around obstacles" do
+    # The start's corner is sealed off by two obstacles.
+    sealed = Reinforce::Environments::GridWorld.new(3, [0, 0], [2, 2], [[0, 1], [1, 0]])
+
+    expect(sealed.reachable_states).to be == [[0, 0]]
+  end
+
+  describe "one-hot observations" do
+    let(:one_hot) { Reinforce::Environments::GridWorld.new(3, [0, 0], [2, 2], [[1, 1]], observation: :one_hot) }
+
+    include_context EnvironmentContract,
+      factory: -> { Reinforce::Environments::GridWorld.new(3, [0, 0], [2, 2], [], observation: :one_hot) }
+
+    it "observes a size * size vector with a 1.0 at the agent's cell, tracking its position internally" do
+      expect(one_hot.state_size).to be == 9
+      expect(one_hot.reset).to be == [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+      next_observation, _reward, _done = one_hot.step(:down)
+
+      expect(next_observation).to be == [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      expect(one_hot.state).to be == [1, 0]
+    end
+
+    it "leaves rewards, obstacles and reachability unchanged" do
+      coordinates = Reinforce::Environments::GridWorld.new(3, [0, 0], [2, 2], [[1, 1]])
+      [one_hot, coordinates].each(&:reset)
+
+      %i[right down down right].each do |action|
+        expect(one_hot.step(action)[1..2]).to be == coordinates.step(action)[1..2]
+      end
+      expect(one_hot.reachable_states).to be == coordinates.reachable_states
+    end
+
+    it "is available for four rooms too" do
+      rooms = Reinforce::Environments::GridWorld.four_rooms(size: 5, observation: :one_hot)
+
+      expect(rooms.reset.size).to be == 25
+    end
+
+    it "rejects unknown observation formats" do
+      expect { Reinforce::Environments::GridWorld.new(3, [0, 0], [2, 2], [], observation: :pixels) }.to raise_exception(ArgumentError)
+    end
+  end
 end

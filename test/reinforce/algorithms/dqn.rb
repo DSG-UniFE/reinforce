@@ -75,4 +75,37 @@ describe Reinforce::Algorithms::DQN do
 
     expect(double_dqn_values).to be == [true]
   end
+
+  it "adds the intrinsic bonus to sampled rewards under the current counts, storing raw rewards" do
+    env = Object.new
+    env.define_singleton_method(:state_size) { 2 }
+    env.define_singleton_method(:actions) { [:left, :right] }
+    env.define_singleton_method(:reset) { [0.0, 0.0] }
+    env.define_singleton_method(:step) { |_action| [[1.0, 1.0], 0.5, true] }
+
+    sampled_rewards = []
+    q_model = Object.new
+    q_model.define_singleton_method(:random_action) { |_state| 0 }
+    q_model.define_singleton_method(:forward) { |_state| Torch.tensor([1.0, 0.0]) }
+    q_model.define_singleton_method(:update) do |experience, target:, double_dqn:, weights:|
+      sampled_rewards << experience[:reward]
+      {loss: 0.0, td_errors: Array.new(experience[:indices].size, 0.0)}
+    end
+    q_target = Object.new
+    q_target.define_singleton_method(:soft_update) { |_model, _tau| nil }
+    bonus = Reinforce::IntrinsicRewards::CountBased.new(coefficient: 1.0)
+
+    dqn_agent = Reinforce::Algorithms::DQN.new(
+      env, q_function_model: q_model, q_function_model_target: q_target, intrinsic_reward: bonus,
+      training_start: 0, q_update_frequency: 1, minibatch_size: 1
+    )
+    dqn_agent.train(episodes: 4, steps_per_episode: 1)
+
+    # [1, 1] has been reached n times by the n-th update: bonus 1/sqrt(n).
+    expected = (1..4).map { |visits| 0.5 + 1 / Math.sqrt(visits) }
+    expect(sampled_rewards.flatten.zip(expected).all? { |actual, wanted| (actual - wanted).abs < 1e-9 }).to be == true
+    expect(dqn_agent.instance_variable_get(:@prioritized_experience_replay).sample(1)[:reward]).to be == [0.5]
+    expect(dqn_agent.metrics[:episode_reward]).to be == [0.5] * 4
+    expect(dqn_agent.metrics[:intrinsic_reward].size).to be == 4
+  end
 end

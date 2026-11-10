@@ -18,6 +18,8 @@ require_relative "reinforce/environments/1d_walk"
 require_relative "reinforce/environments/game_2048"
 require_relative "reinforce/environments/gridworld"
 require_relative "reinforce/environments/taxi"
+require_relative "reinforce/wrappers"
+require_relative "reinforce/intrinsic_rewards"
 require_relative "reinforce/algorithms/sarsa"
 require_relative "reinforce/algorithms/temporal_difference"
 

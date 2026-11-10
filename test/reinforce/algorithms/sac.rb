@@ -280,4 +280,26 @@ describe Reinforce::Algorithms::SAC do
       end
     end
   end
+
+  it "adds the intrinsic bonus to sampled rewards in the critics' targets, keeping raw rewards in the buffer" do
+    TorchTestHelpers.with_torch_seed do
+      bonus = Reinforce::IntrinsicRewards::CountBased.new(coefficient: 1.0)
+      agent = build_agent(intrinsic_reward: bonus, normalize_rewards: false, warmup_steps: 100, batch_size: 4)
+      agent.train(episodes: 4, steps_per_episode: 1) # reaches [0.0] four times
+      batch = Array.new(4) { {state: [0.0], action_index: 1, reward: 2.0, next_state: [0.0], done: 1.0} }
+      targets = []
+      mse = agent.instance_variable_get(:@mse)
+      mse.define_singleton_method(:call) do |prediction, target|
+        targets << target.to_a
+        super(prediction, target)
+      end
+
+      agent.train_step(batch:)
+
+      # Terminal transitions: target = reward + bonus = 2 + 1/sqrt(4).
+      expect(targets.first.all? { |target| (target - 2.5).abs < 1e-5 }).to be == true
+      expect(agent.sample_batch(4).map { |transition| transition[:reward] }.uniq.all? { |reward| reward <= 1.0 }).to be == true
+      expect(agent.metrics[:intrinsic_reward].size).to be == 4
+    end
+  end
 end

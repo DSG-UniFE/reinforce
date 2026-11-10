@@ -75,6 +75,8 @@ jobs:
       - run: bundle install --jobs 3 --retry 3
       - name: Seeded learning regression benchmark
         run: bundle exec sus benchmark/learning.rb
+      - name: Exploration benchmark
+        run: bundle exec sus benchmark/exploration.rb
 
   test-macos:
     name: Test (macOS Apple Silicon)

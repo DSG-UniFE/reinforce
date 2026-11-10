@@ -52,6 +52,14 @@ bundle exec sus benchmark/learning.rb
 
 The tests above check that the code runs; this checks that the algorithms still *learn*. Each case trains an algorithm from scratch under several fixed seeds on GridWorld or Taxi, runs the greedy policy, and requires a minimum number of seeds to reach the goal. It takes about two and a half minutes, so it is kept out of the default `sus` run; CI runs it as a separate job. When a case fails, it prints a per-seed report (success, return, steps, training time). See the comment at the top of `benchmark/learning.rb` for how the budgets and thresholds were chosen before changing them.
 
+### Exploration benchmark
+
+```bash
+bundle exec sus benchmark/exploration.rb
+```
+
+Measures exploration instead of learning: the fraction of reachable states an agent visits (via `Reinforce::Wrappers::StateCoverage`) within a fixed budget on a sparse-reward 21x21 four-rooms GridWorld. Today it only checks a random-policy baseline, to keep the testbed hard enough to tell methods apart; every exploration method (count-based bonuses, RND, ...) should add a case that beats it. The header of `benchmark/exploration.rb` records the current numbers for DQN, PPO and SAC.
+
 ## Linting
 
 ```bash

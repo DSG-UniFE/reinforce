@@ -54,9 +54,13 @@ module Reinforce
 
       alias_method :logs, :metrics
 
+      # @parameter intrinsic_reward [#observe, #call, #train, nil] an
+      #   exploration bonus added to sampled rewards (see
+      #   Reinforce::IntrinsicRewards).
       def initialize(environment, config = nil, policy_model:, q1_model:, q2_model:, q1_target_model:, q2_target_model:,
-        **hyperparameters)
+        intrinsic_reward: nil, **hyperparameters)
         @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
+        @intrinsic_reward = intrinsic_reward
         learning_rate, discount_factor, entropy_coefficient, auto_entropy_tuning, target_entropy,
           batch_size, replay_size, tau, warmup_steps,
           critic_updates_per_step, policy_updates_per_step, target_updates_per_step = @config.to_h.values_at(
@@ -128,6 +132,7 @@ module Reinforce
         episodes.times do
           state = @environment.reset
           episode_reward = 0.0
+          episode_bonus = 0.0
           episode_length = 0
 
           steps_per_episode.times do
@@ -135,7 +140,12 @@ module Reinforce
             action_index = @action_to_index.fetch(action)
             next_state, reward, done = @environment.step(action_index)
             store_transition(state, action, reward, next_state, done)
-            track_return(reward) if @normalize_rewards
+            if @intrinsic_reward
+              @intrinsic_reward.observe(next_state)
+              bonus = @intrinsic_reward.call([next_state]).first
+              episode_bonus += bonus
+            end
+            track_return(reward + (bonus || 0.0)) if @normalize_rewards
 
             episode_reward += reward
             episode_length += 1
@@ -151,6 +161,7 @@ module Reinforce
 
           @discounted_return = 0.0
           @metrics.record(:episode_reward, episode_reward)
+          @metrics.record(:intrinsic_reward, episode_bonus) if @intrinsic_reward
           @metrics.record(:episode_length, episode_length)
         end
       end
@@ -198,6 +209,7 @@ module Reinforce
 
       def train_step(batch: nil, reward_override: nil)
         work_batch = batch || sample_batch(@batch_size)
+        @intrinsic_reward&.train(work_batch.map { |transition| transition[:next_state] })
         q1_loss = 0.0
         q2_loss = 0.0
         @critic_updates_per_step.times do
@@ -287,6 +299,11 @@ module Reinforce
       def update_critics(batch:, reward_override: nil)
         states, actions, rewards, next_states, dones = tensors_from_batch(batch)
         rewards = reward_override if reward_override
+        if @intrinsic_reward && !reward_override
+          # The replay buffer stores raw rewards; the bonus is added here,
+          # under the current statistics, each time a batch is sampled.
+          rewards += Torch.tensor(@intrinsic_reward.call(batch.map { |transition| transition[:next_state] }), dtype: :float32)
+        end
         rewards *= reward_scale
 
         q1 = @q1_model.call(states).gather(1, actions.reshape(-1, 1)).reshape(-1)

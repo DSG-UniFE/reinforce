@@ -10,11 +10,12 @@ Planned changes to `reinforce`, roughly in the order we intend to tackle them. I
 
 ## Reward-free / unsupervised RL
 
-- **Random Network Distillation (RND)** as an opt-in intrinsic-reward module that any algorithm can use.
+- **Exploit rare sparse rewards found through exploration.** With one-hot observations, a count bonus makes PPO, DQN and SAC explore 75-97% of the 21x21 four-rooms testbed, but the goal is found so rarely that only one PPO seed in three learns to reach it (in 100,000 steps). Candidates: decaying the bonus coefficient over training, separate intrinsic and extrinsic value estimates (as in the RND paper), or episodic plus lifelong bonuses.
+- **SAC and exploration bonuses from coordinate observations.** From raw (row, column) coordinates, a count bonus doesn't change SAC's coverage (0.43-0.56), while from one-hot observations it raises it from 0.27-0.35 to 0.86-0.93; probably its critic smooths the bonus across neighboring cells. Lower priority now that one-hot exists.
+- **Random Network Distillation (RND)** on the same interface; then move ExDM's `ScoreBonus` onto it too.
 - **Intrinsic Curiosity Module (ICM)**, built on the same intrinsic-reward module.
-- **Count-based exploration** as a baseline for the small discrete environments.
 - **DIAYN** for reward-free skill discovery.
-- **Successor features**, so a policy can be adapted to new reward weightings without retraining.
+- **Successor features**, so a policy can be adapted to new reward weightings without retraining. Needs a task family to evaluate on (e.g. GridWorld with several goal positions).
 - *Stretch:* Forward-Backward representations for zero-shot RL.
 
 ## Continuous control and further algorithms

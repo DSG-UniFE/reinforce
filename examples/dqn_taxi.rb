@@ -24,7 +24,7 @@ max_actions_per_episode = 250
 warn "State size: #{state_size} actions: #{num_actions}"
 
 # Create the agent
-agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_factor)
+agent = Reinforce::Algorithms::DQN.new(environment, learning_rate:, discount_factor:)
 
 # Train the agent
 agent.train(episodes:, steps_per_episode: max_actions_per_episode, progress_output: $stdout)

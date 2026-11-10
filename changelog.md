@@ -7,6 +7,31 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Breaking
+
+- Every algorithm (and `QFunctionANN`) now takes its hyperparameters as a
+  `Config` value object -- e.g. `Reinforce::Algorithms::PPO::Config` -- and/or
+  as keyword overrides on top of it, and exposes the result as `#config`
+  (`agent.config.to_h` gives a loggable hash). See `Reinforce::Hyperparameters`.
+  Positional hyperparameters are gone:
+
+  | Before | After |
+  |---|---|
+  | `PPO.new(env, lr, policy, value, clip, epochs, mb, gamma, ...)` | `PPO.new(env, learning_rate: lr, policy_model: policy, value_model: value, ...)` |
+  | `DQN.new(env, lr, gamma, epsilon, ...)` | `DQN.new(env, learning_rate: lr, discount_factor: gamma, epsilon:, ...)` |
+  | `SARSA.new(env, q_function, epsilon)` | `SARSA.new(env, q_function, epsilon:)` |
+  | `QFunctionANN.new(states, actions, lr, gamma, ...)` | `QFunctionANN.new(states, actions, learning_rate: lr, discount_factor: gamma, ...)` |
+  | `network_config:` (every algorithm) | `network:` |
+
+  `QFunctionANN`'s and `PPO`'s learning rate, previously required, now
+  default to 1e-3 and 2.5e-4. A misspelled hyperparameter raises
+  `ArgumentError` instead of being silently ignored.
+- Hyperparameters that used to be hard-coded are now configurable:
+  `DQN`'s `training_start` (1000), `q_update_frequency` (10),
+  `target_update_frequency` (500), `tau` (1.0) and `minibatch_size` (128),
+  and `PPO`'s `gae_lambda` (0.97). `PPO`'s `max_grad_norm` now defaults to
+  0.2 on its own rather than to `clip_param`.
+
 ### Added
 
 - `Reinforce::Metrics`: every algorithm now records its training metrics into
@@ -55,6 +80,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- `SARSA`: `episode_reward` metrics are per episode; they used to accumulate
+  across all episodes of a `#train` call.
 - `SAC`: the first `warmup_steps` environment steps now take uniformly
   random actions (as in the reference SAC implementations) instead of
   sampling the randomly initialized policy, and warmup is counted across

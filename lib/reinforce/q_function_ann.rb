@@ -7,6 +7,7 @@ require "torch"
 require "forwardable"
 require_relative "categorical_distribution"
 require_relative "networks"
+require_relative "hyperparameters"
 
 module Reinforce
   # input to the network is the current state
@@ -15,26 +16,31 @@ module Reinforce
     extend Forwardable
 
     def_delegators :@architecture, :apply, :parameters, :state_dict, :load_state_dict
-    attr_reader :optimizer, :architecture
+    attr_reader :optimizer, :architecture, :config
 
-    # @parameter network_config [Reinforce::Networks::Config] also controls
-    #   which device this Q-function's network (and every tensor #update
-    #   builds while training it) lives on -- see network_config.device.
-    #   Applies even when `architecture:` is supplied directly (it gets
-    #   moved to the resolved device too), so the caller-supplied network
-    #   and the tensors #update builds are always guaranteed consistent.
-    def initialize(state_size, num_actions, learning_rate, discount_factor,
-      architecture: nil, network_config: Reinforce::Networks::Config.new)
+    # Hyperparameters (see Reinforce::Hyperparameters).
+    #
+    # network: a Reinforce::Networks::Config. Its shape fields only matter
+    #   when `architecture:` isn't given -- if you supply your own
+    #   architecture, you own its shape entirely. Its device applies either
+    #   way: the network, and every tensor #update builds while training
+    #   it, live on network.device, so a caller-supplied architecture and
+    #   those tensors are always consistent.
+    Config = Data.define(:learning_rate, :discount_factor, :network) do
+      def initialize(learning_rate: 1e-3, discount_factor: 0.99, network: Reinforce::Networks::Config.new)
+        super
+      end
+    end
+
+    def initialize(state_size, num_actions, config = nil, architecture: nil, **hyperparameters)
+      @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
       @num_actions = num_actions
-      @device = Reinforce::Device.resolve(network_config.device)
-      # `network_config:`'s shape fields only matter when `architecture:`
-      # isn't given -- if you supply your own architecture, you own its
-      # shape entirely. Its device does apply either way (see above).
-      @architecture = (architecture || network_config.build(state_size, num_actions)).to(@device)
+      @device = Reinforce::Device.resolve(@config.network.device)
+      @architecture = (architecture || @config.network.build(state_size, num_actions)).to(@device)
       @architecture.train # Enable training mode
       # Create the optimizer
-      @optimizer = Torch::Optim::Adam.new(@architecture.parameters, lr: learning_rate)
-      @discount_factor = discount_factor
+      @optimizer = Torch::Optim::Adam.new(@architecture.parameters, lr: @config.learning_rate)
+      @discount_factor = @config.discount_factor
     end
 
     def forward(state)

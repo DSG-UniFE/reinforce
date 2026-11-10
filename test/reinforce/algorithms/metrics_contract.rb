@@ -27,14 +27,12 @@ describe "online algorithm metrics contract" do
 
     case name
     when :sarsa
-      q_function = Reinforce::QFunctionANN.new(state_size, num_actions, 0.01, 0.9)
-      Reinforce::Algorithms::SARSA.new(environment, q_function, 0.3)
+      q_function = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate: 0.01, discount_factor: 0.9)
+      Reinforce::Algorithms::SARSA.new(environment, q_function, epsilon: 0.3)
     when :dqn
-      agent = Reinforce::Algorithms::DQN.new(environment)
-      agent.instance_variable_set(:@training_start, 0)
-      agent
+      Reinforce::Algorithms::DQN.new(environment, training_start: 0)
     when :ppo
-      Reinforce::Algorithms::PPO.new(environment, 0.001, nil, nil, 0.2, 1, 4, 0.95)
+      Reinforce::Algorithms::PPO.new(environment, learning_rate: 0.001, clip_param: 0.2, ppo_epochs: 1, minibatch_size: 4, discount_factor: 0.95)
     when :sac
       Reinforce::Algorithms::SAC.new(
         environment,

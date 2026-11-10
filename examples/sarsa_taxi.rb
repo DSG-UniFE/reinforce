@@ -24,10 +24,10 @@ epsilon = 0.8
 warn "State size: #{state_size} actions: #{num_actions}"
 
 # Create the Q function: we are using a neural network model for it
-q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
+q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate:, discount_factor:)
 
 # Create the agent
-agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon)
+agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon:)
 
 # Train the agent
 agent.train(episodes:, steps_per_episode: max_actions_per_episode, progress_output: $stdout)

@@ -5,6 +5,7 @@
 
 require "torch"
 require_relative "../categorical_distribution"
+require_relative "../hyperparameters"
 
 module Reinforce
   module Algorithms
@@ -25,7 +26,22 @@ module Reinforce
       # Default weight of the entropy bonus in #update_policy's loss.
       ENTROPY_COEFFICIENT = 0.01
 
-      attr_reader :metrics
+      # Hyperparameters (see Reinforce::Hyperparameters). The learning rate
+      # belongs to the optimizer passed to #initialize.
+      #
+      # normalize_returns: standardize each episode's returns before the
+      #   update (see #normalize). Skipped for single-step episodes, whose
+      #   one return would always normalize to zero and leave nothing to
+      #   learn from.
+      # entropy_coefficient: weight of the entropy bonus (see
+      #   #update_policy); 0.0 disables it.
+      Config = Data.define(:discount_factor, :normalize_returns, :entropy_coefficient) do
+        def initialize(discount_factor: 0.99, normalize_returns: true, entropy_coefficient: ENTROPY_COEFFICIENT)
+          super
+        end
+      end
+
+      attr_reader :metrics, :config
 
       alias_method :logs, :metrics
 
@@ -37,20 +53,16 @@ module Reinforce
       #   its #state_dict.
       # @parameter optimizer [Torch::Optim::Optimizer] built over
       #   `model.parameters`.
-      # @parameter normalize_returns [Boolean] standardize each episode's
-      #   returns before the update (see #normalize). Skipped for single-step
-      #   episodes, whose one return would always normalize to zero and
-      #   leave nothing to learn from.
-      # @parameter entropy_coefficient [Float] weight of the entropy bonus
-      #   (see #update_policy); 0.0 disables it.
-      def initialize(environment, model, optimizer, discount_factor: 0.99, normalize_returns: true, entropy_coefficient: ENTROPY_COEFFICIENT)
+      # @parameter config [Config, nil] see Config and Reinforce::Hyperparameters.
+      def initialize(environment, model, optimizer, config = nil, **hyperparameters)
+        @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
         @environment = environment
         @actions = environment.actions
         @model = model
         @optimizer = optimizer
-        @discount_factor = discount_factor
-        @normalize_returns = normalize_returns
-        @entropy_coefficient = entropy_coefficient
+        @discount_factor = @config.discount_factor
+        @normalize_returns = @config.normalize_returns
+        @entropy_coefficient = @config.entropy_coefficient
         @log_probs = []
         @entropies = []
         @rewards = []

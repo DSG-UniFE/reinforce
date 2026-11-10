@@ -2,6 +2,7 @@
 
 require "torch"
 require_relative "../networks"
+require_relative "../hyperparameters"
 require_relative "sac"
 require_relative "../models/discrete_policy_network"
 require_relative "../models/denoising_autoencoder"
@@ -16,13 +17,33 @@ module Reinforce
     class ExDM
       include ::Reinforce::Agent
 
-      attr_reader :policy_model, :q_network, :q_target_network, :score_model, :metrics, :sac
+      # Hyperparameters (see Reinforce::Hyperparameters).
+      #
+      # entropy_coefficient: initial alpha of the underlying SAC.
+      # intrinsic_coefficient: weight of the intrinsic (score) bonus added
+      #   to rewards.
+      # noise_std: standard deviation of the noise used by that bonus.
+      # network: shape of every default network (unused for the ones
+      #   passed in explicitly).
+      Config = Data.define(
+        :learning_rate, :discount_factor, :entropy_coefficient, :intrinsic_coefficient, :noise_std, :network
+      ) do
+        def initialize(learning_rate: 3e-4, discount_factor: 0.99, entropy_coefficient: 0.1, intrinsic_coefficient: 0.1,
+          noise_std: 0.1, network: ::Reinforce::Networks::Config.new)
+          super
+        end
+      end
+
+      attr_reader :policy_model, :q_network, :q_target_network, :score_model, :metrics, :sac, :config
 
       alias_method :logs, :metrics
 
-      def initialize(dataset = nil, action_space: nil, state_size: nil, learning_rate: 3e-4, discount_factor: 0.99,
-        entropy_coefficient: 0.1, intrinsic_coefficient: 0.1, network_config: ::Reinforce::Networks::Config.new, noise_std: 0.1,
-        policy_model: nil, q1_model: nil, q2_model: nil, q1_target_model: nil, q2_target_model: nil, score_model: nil)
+      def initialize(dataset = nil, config = nil, action_space: nil, state_size: nil,
+        policy_model: nil, q1_model: nil, q2_model: nil, q1_target_model: nil, q2_target_model: nil, score_model: nil,
+        **hyperparameters)
+        @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
+        learning_rate, discount_factor, entropy_coefficient, intrinsic_coefficient, noise_std, network_config =
+          @config.to_h.values_at(:learning_rate, :discount_factor, :entropy_coefficient, :intrinsic_coefficient, :noise_std, :network)
         @dataset = dataset
         if @dataset.nil? && (action_space.nil? || state_size.nil?)
           raise ArgumentError, "action_space and state_size are required when dataset is nil"

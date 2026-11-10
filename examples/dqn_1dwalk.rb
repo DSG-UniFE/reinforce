@@ -10,7 +10,7 @@ require "unicode_plot"
 
 environment = Reinforce::Environments::OneDimensionalWalk.new(10)
 
-agent = Reinforce::Algorithms::DQN.new(environment, 0.01, 0.7)
+agent = Reinforce::Algorithms::DQN.new(environment, learning_rate: 0.01, discount_factor: 0.7)
 
 max_actions_per_episode = 50
 

@@ -32,7 +32,7 @@ describe Reinforce::Algorithms::ExDM do
         discount_factor: 0.95,
         entropy_coefficient: 0.05,
         intrinsic_coefficient: 0.05,
-        network_config: Reinforce::Networks::Config.new(hidden_size: 32)
+        network: Reinforce::Networks::Config.new(hidden_size: 32)
       )
 
       before_action = exdm.predict([0.0])

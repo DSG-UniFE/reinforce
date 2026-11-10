@@ -46,7 +46,7 @@ episodes = 1_000
 max_actions_per_episode = 125
 
 # Create the agent
-agent = Reinforce::Algorithms::PPO.new(environment, learning_rate, entropy_coefficient: entropy_coefficient)
+agent = Reinforce::Algorithms::PPO.new(environment, learning_rate:, entropy_coefficient: entropy_coefficient)
 puts "State size: #{environment.state_size}"
 # Print a summary line (means since the previous line) every 100 finished
 # Taxi episodes, and keep every recorded value in a JSON-lines file for

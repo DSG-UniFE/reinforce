@@ -4,6 +4,7 @@ require_relative "../experience"
 require_relative "../categorical_distribution"
 require_relative "../networks"
 require_relative "../running_mean_std"
+require_relative "../hyperparameters"
 require "torch"
 
 module Reinforce
@@ -86,14 +87,37 @@ module Reinforce
       # normalizing rewards, as in Gymnasium's NormalizeReward.
       REWARD_NORMALIZATION_EPSILON = 1e-8
 
-      attr_reader :metrics
+      # Hyperparameters (see Reinforce::Hyperparameters).
+      #
+      # learning_rate: initial Adam learning rate, annealed linearly to zero
+      #   over training.
+      # clip_param: PPO's probability-ratio clipping range (also used to
+      #   clip value-function updates).
+      # ppo_epochs / minibatch_size: optimization passes over each rollout,
+      #   and samples per gradient step.
+      # gae_lambda: Generalized Advantage Estimation's lambda.
+      # max_grad_norm: gradient-norm clipping threshold.
+      # normalize_rewards: see the comment in #initialize.
+      # network: the shape of the default policy and value networks (only
+      #   used when `policy_model:`/`value_model:` aren't given).
+      Config = Data.define(
+        :learning_rate, :clip_param, :ppo_epochs, :minibatch_size, :discount_factor, :gae_lambda,
+        :entropy_coefficient, :max_grad_norm, :normalize_rewards, :network
+      ) do
+        def initialize(learning_rate: 2.5e-4, clip_param: 0.2, ppo_epochs: 10, minibatch_size: 32, discount_factor: 0.99,
+          gae_lambda: 0.97, entropy_coefficient: 0.01, max_grad_norm: 0.2, normalize_rewards: true,
+          network: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG)
+          super
+        end
+      end
+
+      attr_reader :metrics, :config
 
       alias_method :logs, :metrics
       attr_accessor :agent, :optimizer
 
-      def initialize(environment, learning_rate, policy = nil, value = nil, clip_param = 0.2, ppo_epochs = 10, minibatch_size = 32, discount_factor = 0.99,
-        network_config: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG, entropy_coefficient: 0.01,
-        max_grad_norm: clip_param, normalize_rewards: true)
+      def initialize(environment, config = nil, policy_model: nil, value_model: nil, **hyperparameters)
+        @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
         @environment = environment
         # Reward normalization (Gymnasium's NormalizeReward): divide each
         # reward by a running estimate of the standard deviation of the
@@ -105,26 +129,23 @@ module Reinforce
         # never shifted, so their sign and the optimal policy are unchanged.
         # The statistics persist across #train calls, but not across
         # #save/#load. `episode_reward` metrics always report raw rewards.
-        @normalize_rewards = normalize_rewards
+        @normalize_rewards = @config.normalize_rewards
         @return_rms = Reinforce::RunningMeanStd.new
         @discounted_return = 0.0
-        @entropy_coefficient = entropy_coefficient
-        # Gradient-norm clipping threshold. It used to be hardwired to
-        # clip_param (PPO's ratio-clipping range, an unrelated quantity);
-        # it defaults to the same value so behavior is unchanged.
-        @max_grad_norm = max_grad_norm
+        @entropy_coefficient = @config.entropy_coefficient
+        @max_grad_norm = @config.max_grad_norm
         @agent = ActorCriticNetwork.new(
-          environment.state_size, environment.actions.size, policy, value, network_config: network_config
+          environment.state_size, environment.actions.size, policy_model, value_model, network_config: @config.network
         )
-        @gaelam = 0.97
-        @clip_param = clip_param
-        @ppo_epochs = ppo_epochs
-        @minibatch_size = minibatch_size
-        @discount_factor = discount_factor
-        @learning_rate = learning_rate
+        @gaelam = @config.gae_lambda
+        @clip_param = @config.clip_param
+        @ppo_epochs = @config.ppo_epochs
+        @minibatch_size = @config.minibatch_size
+        @discount_factor = @config.discount_factor
+        @learning_rate = @config.learning_rate
         # Create the optimizer
         @metrics = Reinforce::Metrics::Recorder.new
-        @optimizer = Torch::Optim::Adam.new([@agent.policy_model.parameters, @agent.value_model.parameters].flatten, lr: learning_rate, eps: 1e-5)
+        @optimizer = Torch::Optim::Adam.new([@agent.policy_model.parameters, @agent.value_model.parameters].flatten, lr: @learning_rate, eps: 1e-5)
       end
 
       def save(filename)

@@ -35,7 +35,7 @@ value = Torch::NN::Sequential.new(
   Torch::NN::Linear.new(64, 1)
 )
 
-agent = Reinforce::Algorithms::PPO.new(environment, learning_rate, policy, value)
+agent = Reinforce::Algorithms::PPO.new(environment, learning_rate:, policy_model: policy, value_model: value)
 
 # Train the agent
 agent.train(episodes:, steps_per_episode: max_actions_per_episode, progress_output: $stdout)

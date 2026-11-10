@@ -37,8 +37,7 @@ architectureq = Torch::NN::Sequential.new(
   Torch::NN::Linear.new(128, num_actions)
 )
 
-q_function_model = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size,
-  learning_rate, discount_factor, architecture: architectureq)
+q_function_model = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate:, discount_factor:, architecture: architectureq)
 
 architectureqt = Torch::NN::Sequential.new(
   Torch::NN::Linear.new(state_size, 128),
@@ -48,12 +47,10 @@ architectureqt = Torch::NN::Sequential.new(
   Torch::NN::Linear.new(128, num_actions)
 )
 
-q_function_model_target = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size,
-  learning_rate, discount_factor, architecture: architectureqt)
+q_function_model_target = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate:, discount_factor:, architecture: architectureqt)
 
 # Create the agent
-agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_factor,
-  q_function_model: q_function_model, q_function_model_target: q_function_model_target)
+agent = Reinforce::Algorithms::DQN.new(environment, learning_rate:, discount_factor:, q_function_model: q_function_model, q_function_model_target: q_function_model_target)
 
 # Train the agent
 agent.train(episodes:, steps_per_episode: max_actions_per_episode, progress_output: $stdout)

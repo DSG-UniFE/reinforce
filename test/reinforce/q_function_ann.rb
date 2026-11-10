@@ -6,8 +6,8 @@
 require "reinforce/q_function_ann"
 
 describe Reinforce::QFunctionANN do
-  let(:q_function) { Reinforce::QFunctionANN.new(2, 2, 0.01, 0.99) }
-  let(:q_target_function) { Reinforce::QFunctionANN.new(2, 2, 0.01, 0.99) }
+  let(:q_function) { Reinforce::QFunctionANN.new(2, 2, learning_rate: 0.01, discount_factor: 0.99) }
+  let(:q_target_function) { Reinforce::QFunctionANN.new(2, 2, learning_rate: 0.01, discount_factor: 0.99) }
 
   it "can be soft updated from another ANN-based Q function" do
     # Regression test for two pre-existing bugs found while extracting
@@ -77,8 +77,8 @@ describe Reinforce::QFunctionANN do
       # lib/reinforce/algorithms/sarsa.rb and
       # lib/reinforce/algorithms/temporal_difference.rb.
       Torch.manual_seed(42)
-      q_on_policy = Reinforce::QFunctionANN.new(2, 2, 0.01, 0.5)
-      q_off_policy = Reinforce::QFunctionANN.new(2, 2, 0.01, 0.5)
+      q_on_policy = Reinforce::QFunctionANN.new(2, 2, learning_rate: 0.01, discount_factor: 0.5)
+      q_off_policy = Reinforce::QFunctionANN.new(2, 2, learning_rate: 0.01, discount_factor: 0.5)
       # Give both networks identical weights, so the only difference
       # between the two #update calls below is the on_policy: flag.
       q_off_policy.load_state_dict(q_on_policy.state_dict)
@@ -115,7 +115,7 @@ describe Reinforce::QFunctionANN do
       online_layer = Torch::NN::Linear.new(2, 2)
       Torch::NN::Init.constant!(online_layer.weight, 0.0)
       Torch::NN::Init.constant!(online_layer.bias, 0.0)
-      q = Reinforce::QFunctionANN.new(2, 2, 0.01, 0.5, architecture: Torch::NN::Sequential.new(online_layer))
+      q = Reinforce::QFunctionANN.new(2, 2, learning_rate: 0.01, discount_factor: 0.5, architecture: Torch::NN::Sequential.new(online_layer))
 
       target_double = Object.new
       target_double.define_singleton_method(:forward) { |_next_state| Torch.tensor([[3.0, 9.0]]) }
@@ -136,7 +136,7 @@ describe Reinforce::QFunctionANN do
       # Weight is zero, so this bias is Q(any_state, ·): online favors
       # action 0 regardless of input.
       Torch.no_grad { online_layer.bias.copy!(Torch.tensor([1.0, 0.0])) }
-      q = Reinforce::QFunctionANN.new(2, 2, 0.01, 0.5, architecture: Torch::NN::Sequential.new(online_layer))
+      q = Reinforce::QFunctionANN.new(2, 2, learning_rate: 0.01, discount_factor: 0.5, architecture: Torch::NN::Sequential.new(online_layer))
 
       target_double = Object.new
       # target's own greedy action is 1 (100.0 > 5.0) -- naively trusting
@@ -161,8 +161,8 @@ describe Reinforce::QFunctionANN do
 
     it "weights the loss by weights: instead of treating every sample equally" do
       Torch.manual_seed(1)
-      q_unweighted = Reinforce::QFunctionANN.new(2, 2, 0.01, 0.5)
-      q_weighted = Reinforce::QFunctionANN.new(2, 2, 0.01, 0.5)
+      q_unweighted = Reinforce::QFunctionANN.new(2, 2, learning_rate: 0.01, discount_factor: 0.5)
+      q_weighted = Reinforce::QFunctionANN.new(2, 2, learning_rate: 0.01, discount_factor: 0.5)
       q_weighted.load_state_dict(q_unweighted.state_dict)
 
       experience = {

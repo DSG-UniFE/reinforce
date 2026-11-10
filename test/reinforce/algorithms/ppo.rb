@@ -12,7 +12,7 @@ describe Reinforce::Algorithms::PPO do
     env
   end
 
-  let(:agent) { Reinforce::Algorithms::PPO.new(environment, 0.001, nil, nil, 0.2, 1, 2, 1.0) }
+  let(:agent) { Reinforce::Algorithms::PPO.new(environment, learning_rate: 0.001, clip_param: 0.2, ppo_epochs: 1, minibatch_size: 2, discount_factor: 1.0) }
 
   include_context AgentContract, factory: -> { agent }, state: [0.1, 0.2], actions: %i[left right]
 
@@ -28,26 +28,26 @@ describe Reinforce::Algorithms::PPO do
   end
 
   it "computes gae correctly when rollout ends on terminal transition" do
-    agent.instance_variable_set(:@gaelam, 1.0)
+    undiscounted = Reinforce::Algorithms::PPO.new(environment, agent.config, gae_lambda: 1.0)
 
     rewards = Torch.tensor([1.0, 1.0], dtype: :float32)
     values = Torch.tensor([0.5, 0.5], dtype: :float32)
     dones = Torch.tensor([0.0, 0.0], dtype: :float32)
 
-    advantages, returns = agent.compute_gae(rewards, values, dones, 42.0, true)
+    advantages, returns = undiscounted.compute_gae(rewards, values, dones, 42.0, true)
 
     expect(advantages.to_a).to be == [1.5, 0.5]
     expect(returns.to_a).to be == [2.0, 1.0]
   end
 
   it "cuts off advantage propagation across mid-rollout terminal boundaries" do
-    agent.instance_variable_set(:@gaelam, 1.0)
+    undiscounted = Reinforce::Algorithms::PPO.new(environment, agent.config, gae_lambda: 1.0)
 
     rewards = Torch.tensor([1.0, 1.0, 1.0], dtype: :float32)
     values = Torch.tensor([0.0, 0.0, 0.0], dtype: :float32)
     dones = Torch.tensor([0.0, 1.0, 0.0], dtype: :float32)
 
-    advantages, returns = agent.compute_gae(rewards, values, dones, 2.0, false)
+    advantages, returns = undiscounted.compute_gae(rewards, values, dones, 2.0, false)
 
     expect(advantages.to_a).to be == [1.0, 4.0, 3.0]
     expect(returns.to_a).to be == [1.0, 4.0, 3.0]
@@ -76,7 +76,7 @@ describe Reinforce::Algorithms::PPO do
 
     policy_weights = [0.0, 0.5].map do |coefficient|
       TorchTestHelpers.with_torch_seed do
-        ppo = Reinforce::Algorithms::PPO.new(steppable, 0.01, nil, nil, 0.2, 1, 4, 0.99, entropy_coefficient: coefficient)
+        ppo = Reinforce::Algorithms::PPO.new(steppable, learning_rate: 0.01, clip_param: 0.2, ppo_epochs: 1, minibatch_size: 4, discount_factor: 0.99, entropy_coefficient: coefficient)
         ppo.train(episodes: 2, steps_per_episode: 8)
         TorchTestHelpers.parameter_snapshot(ppo.agent.policy_model).flatten
       end
@@ -121,7 +121,7 @@ describe Reinforce::Algorithms::PPO do
     # #step reached the policy as a Long tensor and crashed it.
     environment = counting_environment(episode_length: 3, observation_type: Integer)
     initial = environment.reset
-    ppo = Reinforce::Algorithms::PPO.new(environment, 0.001, nil, nil, 0.2, 1, 4)
+    ppo = Reinforce::Algorithms::PPO.new(environment, learning_rate: 0.001, clip_param: 0.2, ppo_epochs: 1, minibatch_size: 4)
 
     ppo.train(episodes: 1, steps_per_episode: 6)
 
@@ -133,7 +133,7 @@ describe Reinforce::Algorithms::PPO do
   it "records each episode's own reward, not a running total across a rollout" do
     # Regression: episode_reward was only reset once per rollout, so the
     # second and later episodes in a rollout logged cumulative rewards.
-    ppo = Reinforce::Algorithms::PPO.new(counting_environment(episode_length: 3), 0.001, nil, nil, 0.2, 1, 4)
+    ppo = Reinforce::Algorithms::PPO.new(counting_environment(episode_length: 3), learning_rate: 0.001, clip_param: 0.2, ppo_epochs: 1, minibatch_size: 4)
     ppo.train(episodes: 1, steps_per_episode: 9)
 
     expect(ppo.metrics[:episode_reward]).to be == [3.0, 3.0, 3.0]
@@ -143,7 +143,7 @@ describe Reinforce::Algorithms::PPO do
   it "anneals the learning rate linearly over the rollouts" do
     # Regression: the annealing fraction used Integer division, which is
     # zero for every rollout, so the learning rate never changed.
-    ppo = Reinforce::Algorithms::PPO.new(counting_environment, 0.01, nil, nil, 0.2, 1, 4)
+    ppo = Reinforce::Algorithms::PPO.new(counting_environment, learning_rate: 0.01, clip_param: 0.2, ppo_epochs: 1, minibatch_size: 4)
     seen = []
     optimizer = ppo.optimizer
     optimizer.define_singleton_method(:step) do |*args|
@@ -159,7 +159,7 @@ describe Reinforce::Algorithms::PPO do
   it "bootstraps a rollout-truncated episode from the state it reached, not the reset state" do
     # Regression: the environment was reset before the bootstrap value was
     # computed, so a truncated episode bootstrapped from the start state.
-    ppo = Reinforce::Algorithms::PPO.new(counting_environment, 0.001, nil, nil, 0.2, 1, 4)
+    ppo = Reinforce::Algorithms::PPO.new(counting_environment, learning_rate: 0.001, clip_param: 0.2, ppo_epochs: 1, minibatch_size: 4)
     bootstrapped_from = []
     network = ppo.agent
     network.define_singleton_method(:get_value) do |x|
@@ -185,7 +185,7 @@ describe Reinforce::Algorithms::PPO do
     end
 
     it "is on by default and divides rewards by the running std of the discounted return" do
-      ppo = Reinforce::Algorithms::PPO.new(counting_environment(episode_length: 3), 0.001, nil, nil, 0.2, 1, 4, 0.5)
+      ppo = Reinforce::Algorithms::PPO.new(counting_environment(episode_length: 3), learning_rate: 0.001, clip_param: 0.2, ppo_epochs: 1, minibatch_size: 4, discount_factor: 0.5)
       rewards = stored_rewards(ppo, episodes: 1, steps_per_episode: 6)
 
       # Reference computation, with the accumulator reset after each
@@ -200,14 +200,14 @@ describe Reinforce::Algorithms::PPO do
     end
 
     it "keeps raw rewards in the episode_reward metric" do
-      ppo = Reinforce::Algorithms::PPO.new(counting_environment(episode_length: 3), 0.001, nil, nil, 0.2, 1, 4)
+      ppo = Reinforce::Algorithms::PPO.new(counting_environment(episode_length: 3), learning_rate: 0.001, clip_param: 0.2, ppo_epochs: 1, minibatch_size: 4)
       ppo.train(episodes: 1, steps_per_episode: 6)
 
       expect(ppo.metrics[:episode_reward]).to be == [3.0, 3.0]
     end
 
     it "stores raw rewards when disabled" do
-      ppo = Reinforce::Algorithms::PPO.new(counting_environment, 0.001, nil, nil, 0.2, 1, 4, normalize_rewards: false)
+      ppo = Reinforce::Algorithms::PPO.new(counting_environment, learning_rate: 0.001, clip_param: 0.2, ppo_epochs: 1, minibatch_size: 4, normalize_rewards: false)
 
       expect(stored_rewards(ppo, episodes: 1, steps_per_episode: 4)).to be == [1.0, 1.0, 1.0, 1.0]
     end

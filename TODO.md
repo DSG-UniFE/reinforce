@@ -4,8 +4,7 @@ Planned changes to `reinforce`, roughly in the order we intend to tackle them. I
 
 ## Consolidation of the existing algorithms
 
-- **Experiment tracker integration.** An MLflow sink for `Reinforce::Metrics` (via MLflow's REST API, so no new gem dependency), and a way to record each run's hyperparameters alongside its metrics, which builds on the config objects below.
-- **Hyperparameter config objects.** Replace the long positional argument lists in each algorithm's constructor with per-algorithm `Data.define` configs (e.g. `DQNConfig`), so a full hyperparameter set is one constructible, loggable, diffable value.
+- **Experiment tracker integration.** An MLflow sink for `Reinforce::Metrics` (via MLflow's REST API, so no new gem dependency), and a way to record each run's hyperparameters (`agent.config.to_h`) alongside its metrics.
 - **Device support everywhere.** Pass `device:` through the tensor construction call sites in SAC, PPO, `BehaviorCloning`, `ConservativeQLearning`, `ExDM` and `MonteCarloPolicyGradient`, following the pattern already used in `QFunctionANN` and `DQN`.
 - **SAC's remaining failures.** With the new defaults, SAC still walks into a wall greedily on 2 of 10 seeds of a 10x10 GridWorld (its stochastic policy succeeds on all 10), and collapses on 1 of 10 Taxi seeds. A longer warmup (5,000 steps) solved 5/5 on GridWorld; the GridWorld failures look like the reward-scale problem PPO had, so reward normalization for SAC is the first thing to try.
 - **Close the remaining coverage gaps,** starting with `ppo.rb` and the environments (`taxi.rb`, `game_2048.rb`, `1d_walk.rb`), plus `experience.rb`.

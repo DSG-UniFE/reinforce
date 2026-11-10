@@ -37,6 +37,12 @@ module Reinforce
     def render: (?IO output_stream) -> void
   end
 
+  # Resolves an algorithm's Config from an optional base config plus
+  # keyword overrides. See lib/reinforce/hyperparameters.rb.
+  module Hyperparameters
+    def self.resolve: (singleton(Data) config_class, Data? config, Hash[Symbol, untyped] overrides) -> Data
+  end
+
   # Running mean and variance of a stream of scalars (parallel-variance
   # updates), as in Gymnasium's RunningMeanStd.
   class RunningMeanStd

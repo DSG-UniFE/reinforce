@@ -5,6 +5,7 @@
 
 require_relative "../experience"
 require_relative "../categorical_distribution"
+require_relative "../hyperparameters"
 
 module Reinforce
   module Algorithms
@@ -21,14 +22,27 @@ module Reinforce
     class SARSA
       include ::Reinforce::Agent
 
-      attr_reader :metrics
+      # Hyperparameters (see Reinforce::Hyperparameters). The learning rate
+      # and discount factor belong to the Q-function model (see
+      # QFunctionANN::Config).
+      #
+      # epsilon: initial exploration rate, decayed linearly to zero over
+      #   training.
+      Config = Data.define(:epsilon) do
+        def initialize(epsilon: 0.01)
+          super
+        end
+      end
+
+      attr_reader :metrics, :config
 
       alias_method :logs, :metrics
 
-      def initialize(environment, q_function_model, epsilon = 0.01)
+      def initialize(environment, q_function_model, config = nil, **hyperparameters)
+        @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
         @environment = environment
         @q_function_model = q_function_model
-        @initial_epsilon = epsilon
+        @initial_epsilon = @config.epsilon
         # Create a store for learning experience
         @experience = ::Reinforce::Experience.new
         @metrics = Reinforce::Metrics::Recorder.new
@@ -103,6 +117,7 @@ module Reinforce
             if done || actions_left.zero? # Reached the goal state
               @metrics.record(:episode_reward, episode_reward)
               @metrics.record(:episode_length, episode_length)
+              episode_reward = 0
               episode_length = 0
               break
             end

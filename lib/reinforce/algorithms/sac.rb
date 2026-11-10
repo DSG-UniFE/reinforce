@@ -2,6 +2,7 @@
 
 require "torch"
 require_relative "../networks"
+require_relative "../hyperparameters"
 
 module Reinforce
   module Algorithms
@@ -19,14 +20,41 @@ module Reinforce
       # inconsistent on a 10x10 GridWorld, and 0.3 solved 22 of 25 seeds.
       TARGET_ENTROPY_SCALE = 0.3
 
-      attr_reader :metrics, :policy_model, :q1_model, :q2_model, :q1_target_model, :q2_target_model, :actions, :batch_size
+      # Hyperparameters (see Reinforce::Hyperparameters).
+      #
+      # entropy_coefficient: alpha, or its initial value when
+      #   auto_entropy_tuning is on.
+      # target_entropy: the entropy automatic tuning aims for; nil means
+      #   TARGET_ENTROPY_SCALE * log(number of actions).
+      # warmup_steps: initial environment steps (across all #train calls)
+      #   that take uniformly random actions and make no updates.
+      # tau: Polyak averaging factor for the target critics.
+      Config = Data.define(
+        :learning_rate, :discount_factor, :entropy_coefficient, :auto_entropy_tuning, :target_entropy,
+        :batch_size, :replay_size, :tau, :warmup_steps,
+        :critic_updates_per_step, :policy_updates_per_step, :target_updates_per_step
+      ) do
+        def initialize(learning_rate: 3e-4, discount_factor: 0.99, entropy_coefficient: 0.1, auto_entropy_tuning: true,
+          target_entropy: nil, batch_size: 64, replay_size: 10_000, tau: 0.05, warmup_steps: 2_000,
+          critic_updates_per_step: 1, policy_updates_per_step: 1, target_updates_per_step: 1)
+          super
+        end
+      end
+
+      attr_reader :metrics, :config, :policy_model, :q1_model, :q2_model, :q1_target_model, :q2_target_model, :actions, :batch_size
 
       alias_method :logs, :metrics
 
-      def initialize(environment, policy_model:, q1_model:, q2_model:, q1_target_model:, q2_target_model:,
-        learning_rate: 3e-4, discount_factor: 0.99, entropy_coefficient: 0.1, auto_entropy_tuning: true,
-        target_entropy: nil, batch_size: 64, replay_size: 10_000, tau: 0.05, warmup_steps: 2_000,
-        critic_updates_per_step: 1, policy_updates_per_step: 1, target_updates_per_step: 1)
+      def initialize(environment, config = nil, policy_model:, q1_model:, q2_model:, q1_target_model:, q2_target_model:,
+        **hyperparameters)
+        @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
+        learning_rate, discount_factor, entropy_coefficient, auto_entropy_tuning, target_entropy,
+          batch_size, replay_size, tau, warmup_steps,
+          critic_updates_per_step, policy_updates_per_step, target_updates_per_step = @config.to_h.values_at(
+            :learning_rate, :discount_factor, :entropy_coefficient, :auto_entropy_tuning, :target_entropy,
+            :batch_size, :replay_size, :tau, :warmup_steps,
+            :critic_updates_per_step, :policy_updates_per_step, :target_updates_per_step
+          )
         @environment = environment
         @actions = environment.actions
         @action_to_index = {}

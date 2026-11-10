@@ -10,8 +10,8 @@ describe "trainer integration on real environments" do
     srand(1234)
     Torch.manual_seed(1234)
     environment = Reinforce::Environments::OneDimensionalWalk.new(8)
-    q_function = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size, 0.01, 0.9)
-    agent = Reinforce::Algorithms::SARSA.new(environment, q_function, 0.3)
+    q_function = Reinforce::QFunctionANN.new(environment.state_size, environment.actions.size, learning_rate: 0.01, discount_factor: 0.9)
+    agent = Reinforce::Algorithms::SARSA.new(environment, q_function, epsilon: 0.3)
 
     agent.train(episodes: 4, steps_per_episode: 8)
 
@@ -24,7 +24,7 @@ describe "trainer integration on real environments" do
     srand(1234)
     Torch.manual_seed(1234)
     environment = Reinforce::Environments::GridWorld.new(5, [0, 0], [4, 4], 0)
-    agent = Reinforce::Algorithms::PPO.new(environment, 0.001, nil, nil, 0.2, 1, 4, 0.95)
+    agent = Reinforce::Algorithms::PPO.new(environment, learning_rate: 0.001, clip_param: 0.2, ppo_epochs: 1, minibatch_size: 4, discount_factor: 0.95)
 
     agent.train(episodes: 3, steps_per_episode: 8)
 

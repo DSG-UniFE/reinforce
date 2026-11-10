@@ -6,6 +6,7 @@
 require_relative "reinforce/version"
 require_relative "reinforce/environment"
 require_relative "reinforce/agent"
+require_relative "reinforce/hyperparameters"
 require_relative "reinforce/metrics"
 require_relative "reinforce/running_mean_std"
 require_relative "reinforce/experience"

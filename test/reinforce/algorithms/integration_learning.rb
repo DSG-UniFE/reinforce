@@ -40,21 +40,15 @@ describe "integration learning smoke tests" do
       Torch::NN::Init.constant!(layer.bias, 0.0)
     end
 
-    q_model = Reinforce::QFunctionANN.new(1, 2, 0.05, 0.0, architecture: q_arch)
-    q_target_model = Reinforce::QFunctionANN.new(1, 2, 0.05, 0.0, architecture: q_target_arch)
+    q_model = Reinforce::QFunctionANN.new(1, 2, learning_rate: 0.05, discount_factor: 0.0, architecture: q_arch)
+    q_target_model = Reinforce::QFunctionANN.new(1, 2, learning_rate: 0.05, discount_factor: 0.0, architecture: q_target_arch)
 
     agent = Reinforce::Algorithms::DQN.new(
       env,
-      0.05,
-      0.0,
-      1.0,
-      q_function_model: q_model,
-      q_function_model_target: q_target_model
+      q_function_model: q_model, q_function_model_target: q_target_model,
+      learning_rate: 0.05, discount_factor: 0.0, epsilon: 1.0,
+      training_start: 8, q_update_frequency: 1, target_update_frequency: 10
     )
-
-    agent.instance_variable_set(:@training_start, 8)
-    agent.instance_variable_set(:@update_frequency_for_q, 1)
-    agent.instance_variable_set(:@update_frequency_for_q_target, 10)
 
     before_logits = q_model.forward([0.0]).to_a
     before_gap = before_logits[1] - before_logits[0]
@@ -80,7 +74,7 @@ describe "integration learning smoke tests" do
     Torch::NN::Init.constant!(value_layer.weight, 0.0)
     Torch::NN::Init.constant!(value_layer.bias, 0.0)
 
-    agent = Reinforce::Algorithms::PPO.new(env, 0.02, policy, value, 0.2, 2, 4, 0.0)
+    agent = Reinforce::Algorithms::PPO.new(env, learning_rate: 0.02, policy_model: policy, value_model: value, clip_param: 0.2, ppo_epochs: 2, minibatch_size: 4, discount_factor: 0.0)
 
     state = Torch.tensor([0.0], dtype: :float32)
     before_logits = agent.agent.policy_model.call(state).to_a

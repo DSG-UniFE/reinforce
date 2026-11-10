@@ -11,7 +11,7 @@ describe Reinforce::Algorithms::DQN do
     env
   end
 
-  let(:agent) { Reinforce::Algorithms::DQN.new(environment, 0.001, 1.0) }
+  let(:agent) { Reinforce::Algorithms::DQN.new(environment, learning_rate: 0.001, discount_factor: 1.0) }
 
   include_context AgentContract, factory: -> { agent }, state: [0.1, 0.2], actions: %i[left right]
 
@@ -39,7 +39,7 @@ describe Reinforce::Algorithms::DQN do
     # shadow optimizer instead). Now that DQN delegates to
     # QFunctionANN#update, QFunctionANN's own optimizer is the only one
     # that exists, so the configured learning rate is what's actually used.
-    custom_agent = Reinforce::Algorithms::DQN.new(environment, 0.5)
+    custom_agent = Reinforce::Algorithms::DQN.new(environment, learning_rate: 0.5)
 
     lr = custom_agent.instance_variable_get(:@q_function_model).optimizer.param_groups[0][:lr]
     expect(lr).to be_within(1e-9).of(0.5)
@@ -67,10 +67,9 @@ describe Reinforce::Algorithms::DQN do
     q_target.define_singleton_method(:soft_update) { |_model, _tau| nil }
 
     dqn_agent = Reinforce::Algorithms::DQN.new(
-      env, q_function_model: q_model, q_function_model_target: q_target, double_dqn: true
+      env, q_function_model: q_model, q_function_model_target: q_target,
+      double_dqn: true, training_start: 0, q_update_frequency: 1
     )
-    dqn_agent.instance_variable_set(:@training_start, 0)
-    dqn_agent.instance_variable_set(:@update_frequency_for_q, 1)
 
     dqn_agent.train(episodes: 1, steps_per_episode: 1)
 

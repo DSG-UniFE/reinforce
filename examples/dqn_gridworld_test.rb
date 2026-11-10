@@ -21,7 +21,7 @@ discount_factor = 0.7
 max_actions_per_episode = 150
 
 # Create the agent
-agent = Reinforce::Algorithms::DQN.new(environment, learning_rate, discount_factor)
+agent = Reinforce::Algorithms::DQN.new(environment, learning_rate:, discount_factor:)
 
 # Load the agent
 

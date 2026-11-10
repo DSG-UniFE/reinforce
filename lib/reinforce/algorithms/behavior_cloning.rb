@@ -2,6 +2,7 @@
 
 require "torch"
 require_relative "../networks"
+require_relative "../hyperparameters"
 
 module Reinforce
   module Algorithms
@@ -9,12 +10,20 @@ module Reinforce
     class BehaviorCloning
       include ::Reinforce::Agent
 
-      attr_reader :policy_model, :metrics, :actions
+      # Hyperparameters (see Reinforce::Hyperparameters). `network` shapes
+      # the default policy network (unused when `policy_model:` is given).
+      Config = Data.define(:learning_rate, :network) do
+        def initialize(learning_rate: 1e-3, network: ::Reinforce::Networks::Config.new)
+          super
+        end
+      end
+
+      attr_reader :policy_model, :metrics, :actions, :config
 
       alias_method :logs, :metrics
 
-      def initialize(dataset, action_space: nil, learning_rate: 1e-3,
-        network_config: ::Reinforce::Networks::Config.new, policy_model: nil)
+      def initialize(dataset, config = nil, action_space: nil, policy_model: nil, **hyperparameters)
+        @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
         @dataset = dataset
         raise ArgumentError, "dataset cannot be empty" if @dataset.empty?
 
@@ -23,9 +32,9 @@ module Reinforce
         @actions.each_with_index { |action, index| @action_to_index[action] = index }
 
         @state_size = flatten_state(@dataset.transitions.first[:state]).size
-        @policy_model = policy_model || network_config.build(@state_size, @actions.size)
+        @policy_model = policy_model || @config.network.build(@state_size, @actions.size)
         @policy_model.train
-        @optimizer = Torch::Optim::Adam.new(@policy_model.parameters, lr: learning_rate)
+        @optimizer = Torch::Optim::Adam.new(@policy_model.parameters, lr: @config.learning_rate)
         @criterion = Torch::NN::CrossEntropyLoss.new
         @metrics = Reinforce::Metrics::Recorder.new
       end

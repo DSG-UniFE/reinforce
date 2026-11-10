@@ -17,7 +17,7 @@ describe Reinforce::Algorithms::SARSA do
     factory: -> {
       env = Object.new
       env.define_singleton_method(:actions) { %i[left right] }
-      Reinforce::Algorithms::SARSA.new(env, Reinforce::QFunctionANN.new(2, 2, 0.001, 0.99))
+      Reinforce::Algorithms::SARSA.new(env, Reinforce::QFunctionANN.new(2, 2, learning_rate: 0.001, discount_factor: 0.99))
     },
     state: [0.1, 0.2],
     actions: %i[left right]
@@ -55,7 +55,7 @@ describe Reinforce::Algorithms::SARSA do
     env.define_singleton_method(:reset) { [0] }
     env.define_singleton_method(:step) { |_action| [[1], 1.0, true] }
 
-    sarsa = Reinforce::Algorithms::SARSA.new(env, q_model, 1.0)
+    sarsa = Reinforce::Algorithms::SARSA.new(env, q_model, epsilon: 1.0)
     sarsa.train(episodes: 1, steps_per_episode: 2)
 
     expect(q_model.seen_states).to be == [[0], [1]]
@@ -82,9 +82,26 @@ describe Reinforce::Algorithms::SARSA do
     env.define_singleton_method(:reset) { [0] }
     env.define_singleton_method(:step) { |_action| [[1], 1.0, true] }
 
-    sarsa = Reinforce::Algorithms::SARSA.new(env, q_model, 1.0)
+    sarsa = Reinforce::Algorithms::SARSA.new(env, q_model, epsilon: 1.0)
     sarsa.train(episodes: 2, steps_per_episode: 2)
 
     expect(q_model.update_on_policy_values).to be == [true, true]
+  end
+
+  it "records each episode's own reward, not a running total across episodes" do
+    # Regression: episode_reward was never reset between episodes.
+    env = Object.new
+    steps = 0
+    env.define_singleton_method(:actions) { %i[left right] }
+    env.define_singleton_method(:reset) { [steps = 0] }
+    env.define_singleton_method(:step) do |_action|
+      steps += 1
+      [[steps], 1.0, steps >= 2]
+    end
+    sarsa = Reinforce::Algorithms::SARSA.new(env, Reinforce::QFunctionANN.new(1, 2), epsilon: 0.5)
+
+    sarsa.train(episodes: 3, steps_per_episode: 5)
+
+    expect(sarsa.metrics[:episode_reward]).to be == [2.0, 2.0, 2.0]
   end
 end

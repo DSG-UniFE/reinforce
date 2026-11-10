@@ -2,6 +2,7 @@
 
 require "torch"
 require_relative "../networks"
+require_relative "../hyperparameters"
 
 module Reinforce
   module Algorithms
@@ -9,12 +10,24 @@ module Reinforce
     class ConservativeQLearning
       include ::Reinforce::Agent
 
-      attr_reader :q_network, :q_target_network, :actions, :metrics
+      # Hyperparameters (see Reinforce::Hyperparameters).
+      #
+      # alpha: weight of the conservative penalty.
+      # network: shape of the default Q-networks (unused when
+      #   `q_network:`/`q_target_network:` are given).
+      Config = Data.define(:learning_rate, :discount_factor, :alpha, :network) do
+        def initialize(learning_rate: 1e-3, discount_factor: 0.99, alpha: 0.1, network: ::Reinforce::Networks::Config.new)
+          super
+        end
+      end
+
+      attr_reader :q_network, :q_target_network, :actions, :metrics, :config
 
       alias_method :logs, :metrics
 
-      def initialize(dataset, action_space: nil, learning_rate: 1e-3, discount_factor: 0.99, alpha: 0.1,
-        network_config: ::Reinforce::Networks::Config.new, q_network: nil, q_target_network: nil)
+      def initialize(dataset, config = nil, action_space: nil, q_network: nil, q_target_network: nil, **hyperparameters)
+        @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
+        network_config = @config.network
         @dataset = dataset
         raise ArgumentError, "dataset cannot be empty" if @dataset.empty?
 
@@ -23,8 +36,8 @@ module Reinforce
         @actions.each_with_index { |action, index| @action_to_index[action] = index }
 
         @state_size = flatten_state(@dataset.transitions.first[:state]).size
-        @discount_factor = discount_factor
-        @alpha = alpha
+        @discount_factor = @config.discount_factor
+        @alpha = @config.alpha
 
         @q_network = q_network || network_config.build(@state_size, @actions.size)
         @q_target_network = q_target_network || network_config.build(@state_size, @actions.size)
@@ -32,7 +45,7 @@ module Reinforce
         @q_network.train
         @q_target_network.train
 
-        @optimizer = Torch::Optim::Adam.new(@q_network.parameters, lr: learning_rate)
+        @optimizer = Torch::Optim::Adam.new(@q_network.parameters, lr: @config.learning_rate)
         @metrics = Reinforce::Metrics::Recorder.new
       end
 

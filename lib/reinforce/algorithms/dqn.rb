@@ -8,6 +8,7 @@ require_relative "../categorical_distribution"
 require_relative "../prioritized_experience_replay"
 require_relative "../q_function_ann"
 require_relative "../networks"
+require_relative "../hyperparameters"
 require_relative "../models/dueling_q_network"
 
 module Reinforce
@@ -21,7 +22,7 @@ module Reinforce
     # here; see lib/reinforce/q_function_ann.rb.
     #
     # Two well-established, cheap-to-add improvements over vanilla DQN are
-    # available as constructor flags:
+    # available as hyperparameters (see DQN::Config):
     #
     # - `double_dqn: true` (Van Hasselt et al., 2015) selects the bootstrap
     #   action via this network's own argmax but evaluates it using the
@@ -34,37 +35,52 @@ module Reinforce
     #   aren't supplied explicitly -- if you build your own, pass a
     #   DuelingQNetwork-based one directly instead.
     #
-    # `network_config:` (a Reinforce::Networks::Config) controls the
-    # default Q-network's shape -- hidden layer width/count/activation --
-    # for either architecture, again only when
+    # `network` (a Reinforce::Networks::Config) controls the default
+    # Q-network's shape -- hidden layer width/count/activation -- for
+    # either architecture, again only when
     # `q_function_model`/`q_function_model_target` aren't supplied
     # explicitly.
     class DQN
       include ::Reinforce::Agent
 
-      attr_reader :metrics
+      # Hyperparameters (see Reinforce::Hyperparameters).
+      #
+      # epsilon: initial exploration rate, decayed linearly to zero over
+      #   training.
+      # training_start: environment steps collected before any update.
+      # q_update_frequency: steps between Q-network updates.
+      # target_update_frequency: steps between target-network updates.
+      # tau: Polyak averaging factor for those target updates (1.0 copies
+      #   the online network outright).
+      # minibatch_size: replay samples per Q-network update.
+      Config = Data.define(
+        :learning_rate, :discount_factor, :epsilon, :double_dqn, :dueling, :tau,
+        :training_start, :q_update_frequency, :target_update_frequency, :minibatch_size, :network
+      ) do
+        def initialize(learning_rate: 2.5e-4, discount_factor: 0.99, epsilon: 0.9, double_dqn: false, dueling: false,
+          tau: 1.0, training_start: 1000, q_update_frequency: 10, target_update_frequency: 500, minibatch_size: 128,
+          network: Reinforce::Networks::Config.new)
+          super
+        end
+      end
+
+      attr_reader :metrics, :config
 
       alias_method :logs, :metrics
 
-      def initialize(environment, learning_rate = 2.5e-4, discount_factor = 0.99, epsilon = 0.9,
-        q_function_model: nil, q_function_model_target: nil, double_dqn: false, dueling: false,
-        network_config: Reinforce::Networks::Config.new)
+      def initialize(environment, config = nil, q_function_model: nil, q_function_model_target: nil, **hyperparameters)
+        @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
         @environment = environment
-        @double_dqn = double_dqn
-        @q_function_model = q_function_model ||
-          build_q_function(environment, learning_rate, discount_factor, dueling, network_config)
-        @q_function_model_target = q_function_model_target ||
-          build_q_function(environment, learning_rate, discount_factor, dueling, network_config)
+        @double_dqn = @config.double_dqn
+        @q_function_model = q_function_model || build_q_function(environment)
+        @q_function_model_target = q_function_model_target || build_q_function(environment)
         # Create prioritized experience replay store
         @prioritized_experience_replay = PrioritizedExperienceReplay.new
-        # tau is the Polyak averaging parameter, it should be between 0 and 1
-        @tau = 1.0
-        @learning_rate = learning_rate
-        @initial_epsilon = epsilon
-        @training_start = 1000
-        @update_frequency_for_q = 10
-        @update_frequency_for_q_target = 500
-        @discount_factor = discount_factor
+        @tau = @config.tau
+        @initial_epsilon = @config.epsilon
+        @training_start = @config.training_start
+        @update_frequency_for_q = @config.q_update_frequency
+        @update_frequency_for_q_target = @config.target_update_frequency
         @metrics = Reinforce::Metrics::Recorder.new
       end
 
@@ -100,7 +116,7 @@ module Reinforce
         # of it.
         epsilon = @initial_epsilon
 
-        minibatch_size = 128
+        minibatch_size = @config.minibatch_size
         global_step = 0
 
         state = @environment.reset
@@ -185,15 +201,16 @@ module Reinforce
 
       private
 
-      def build_q_function(environment, learning_rate, discount_factor, dueling, network_config)
-        architecture = if dueling
+      def build_q_function(environment)
+        architecture = if @config.dueling
           ::Reinforce::Models::DuelingQNetwork.new(
-            environment.state_size, environment.actions.size, network_config: network_config
+            environment.state_size, environment.actions.size, network_config: @config.network
           )
         end
         QFunctionANN.new(
-          environment.state_size, environment.actions.size, learning_rate, discount_factor,
-          architecture: architecture, network_config: network_config
+          environment.state_size, environment.actions.size,
+          learning_rate: @config.learning_rate, discount_factor: @config.discount_factor, network: @config.network,
+          architecture: architecture
         )
       end
     end

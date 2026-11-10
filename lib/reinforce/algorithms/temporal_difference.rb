@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../hyperparameters"
+
 module Reinforce
   module Algorithms
     # Generic Temporal Difference learner for discrete action spaces.
@@ -13,13 +15,21 @@ module Reinforce
     class TemporalDifference
       include ::Reinforce::Agent
 
-      attr_reader :q_table, :learning_rate, :discount_factor, :epsilon
+      # Hyperparameters (see Reinforce::Hyperparameters).
+      Config = Data.define(:learning_rate, :discount_factor, :epsilon) do
+        def initialize(learning_rate: 0.1, discount_factor: 0.9, epsilon: 0.1)
+          super
+        end
+      end
 
-      def initialize(environment, learning_rate: 0.1, discount_factor: 0.9, epsilon: 0.1)
+      attr_reader :q_table, :learning_rate, :discount_factor, :epsilon, :config
+
+      def initialize(environment, config = nil, **hyperparameters)
+        @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
         @environment = environment
-        @learning_rate = learning_rate
-        @discount_factor = discount_factor
-        @epsilon = epsilon
+        @learning_rate = @config.learning_rate
+        @discount_factor = @config.discount_factor
+        @epsilon = @config.epsilon
         @q_table = Hash.new { |hash, key| hash[key] = Hash.new(0.0) }
       end
 

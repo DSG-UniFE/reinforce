@@ -22,9 +22,9 @@ max_actions_per_episode = 150
 # The q_function is loaded from file
 learning_rate = 0.01
 discount_factor = 0.7
-q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate, discount_factor)
+q_function_model = Reinforce::QFunctionANN.new(state_size, num_actions, learning_rate:, discount_factor:)
 
-agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, 0.5)
+agent = Reinforce::Algorithms::SARSA.new(environment, q_function_model, epsilon: 0.5)
 agent.load("gridworld_sarsa.pth")
 
 # Print the learned policy

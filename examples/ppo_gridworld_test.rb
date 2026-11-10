@@ -20,7 +20,7 @@ learning_rate = 0.001
 max_actions_per_episode = 150
 
 # Create the agent
-agent = Reinforce::Algorithms::PPO.new(environment, learning_rate)
+agent = Reinforce::Algorithms::PPO.new(environment, learning_rate:)
 
 # Load the agent from file
 agent.load("gridworld_ppo.pth")

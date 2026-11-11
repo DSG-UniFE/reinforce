@@ -60,6 +60,7 @@ describe Reinforce::Hyperparameters do
     Reinforce::IntrinsicRewards::RND => [
       ->(config, **hp) { Reinforce::IntrinsicRewards::RND.new(2, config, **hp) }, :update_epochs, 2
     ],
+    Reinforce::Algorithms::DIAYN => [->(config, **hp) { Reinforce::Algorithms::DIAYN.new(environment, config, **hp) }, :skills, 3],
     Reinforce::Algorithms::ExDM => [->(config, **hp) { Reinforce::Algorithms::ExDM.new(dataset, config, **hp) }, :noise_std, 0.5]
   }
 

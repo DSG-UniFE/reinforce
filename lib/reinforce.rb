@@ -50,6 +50,7 @@ begin
   require_relative "reinforce/offline/intrinsic_rewards/score_bonus"
   require_relative "reinforce/intrinsic_rewards/rnd"
   require_relative "reinforce/algorithms/exdm"
+  require_relative "reinforce/algorithms/diayn"
 rescue LoadError => error
   raise unless error.path == "torch"
 end

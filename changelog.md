@@ -34,6 +34,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- `Reinforce::Algorithms::DIAYN` (Eysenbach et al., 2018): reward-free skill
+  discovery. A discriminator learns to tell skills apart from the states they
+  reach, and each skill is rewarded by log q(skill | state) - log p(skill).
+  The DIAYN-specific work happens in a skill-conditioned environment wrapper,
+  so any algorithm can learn the skills (PPO by default);
+  `predict(state, skill:)` runs one. On an open 10x10 GridWorld, 8 skills
+  become distinguishable from their final states 83-88% of the time (chance:
+  12.5%). A new `benchmark/skills.rb` runs in CI.
 - `IntrinsicRewards::RND`: Random Network Distillation (Burda et al., 2018),
   a bonus equal to a trained predictor's error at reproducing a fixed random
   network's features, with running per-dimension observation normalization.

@@ -77,6 +77,8 @@ jobs:
         run: bundle exec sus benchmark/learning.rb
       - name: Exploration benchmark
         run: bundle exec sus benchmark/exploration.rb
+      - name: Skill discovery benchmark
+        run: bundle exec sus benchmark/skills.rb
 
   test-macos:
     name: Test (macOS Apple Silicon)

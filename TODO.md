@@ -15,7 +15,8 @@ Planned changes to `reinforce`, roughly in the order we intend to tackle them. I
 - **Move ExDM's `ScoreBonus` onto the intrinsic-reward interface,** now that RND (its well-understood relative) is there.
 - **Show where RND beats counts:** a variant of the testbed where exact counts break down (e.g. noisy or continuous observations, so no state is ever seen twice).
 - **Intrinsic Curiosity Module (ICM)**, built on the same intrinsic-reward module.
-- **DIAYN** for reward-free skill discovery.
+- **DIAYN skills that go somewhere.** On four-rooms layouts DIAYN's skills are perfectly distinguishable but nearly all stay in the starting room, because its objective rewards being distinguishable, not covering ground. Try combining it with an exploration bonus, a coarser discriminator input (e.g. which room), or a distance-aware objective (LSD, DADS).
+- **Use learned skills downstream:** a high-level controller that picks DIAYN skills to solve a task (the hierarchical-RL item below), or fine-tuning one skill on a task's reward.
 - **Successor features**, so a policy can be adapted to new reward weightings without retraining. Needs a task family to evaluate on (e.g. GridWorld with several goal positions).
 - *Stretch:* Forward-Backward representations for zero-shot RL.
 

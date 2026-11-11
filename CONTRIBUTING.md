@@ -60,6 +60,14 @@ bundle exec sus benchmark/exploration.rb
 
 Measures exploration instead of learning: the fraction of reachable states an agent visits (via `Reinforce::Wrappers::StateCoverage`) within a fixed budget on a sparse-reward 21x21 four-rooms GridWorld. Today it only checks a random-policy baseline, to keep the testbed hard enough to tell methods apart; every exploration method (count-based bonuses, RND, ...) should add a case that beats it. The header of `benchmark/exploration.rb` records the current numbers for DQN, PPO and SAC.
 
+### Skill discovery benchmark
+
+```bash
+bundle exec sus benchmark/skills.rb
+```
+
+Checks that unsupervised skill discovery (`DIAYN`) learns skills that are genuinely different with no reward at all: each of 8 skills is run on an open 10x10 GridWorld, and the discriminator must attribute most runs' final states to the right skill (untrained skills sit at chance level, which a second case checks). The file's header records the numbers and DIAYN's known limitation on four-rooms layouts.
+
 ## Linting
 
 ```bash

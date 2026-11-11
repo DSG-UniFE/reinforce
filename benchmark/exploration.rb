@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "support/exploration_benchmark"
+require_relative "support/learning_benchmark"
 
 # Exploration benchmark: how much of a hard-exploration environment does
 # each method visit within a fixed budget? Run with:
@@ -29,10 +30,12 @@ require_relative "support/exploration_benchmark"
 #   SAC + count bonus (0.1)    0.86-0.93   2-3 episodes per seed      0/3
 #
 # One-hot makes every algorithm respond to the bonus (SAC barely does from
-# coordinates), but at this budget the goal is still found too rarely to
-# learn from. Over 100,000 steps, PPO + count bonus solved one seed of three
-# (greedy: optimal 40 steps; stochastic: 19/20). The cases below use
-# coordinates, which are much cheaper for SAC (one-hot: ~150s per seed).
+# coordinates). Those runs added the bonus to the reward; PPO's separate
+# intrinsic value head (now its default) is what turns exploration into
+# solving the task: over 100,000 steps on one-hot 21x21, 5/5 seeds solved
+# greedily in the optimal 40 steps (bonus added to the reward: 1/5). The
+# coverage cases use coordinates, which are much cheaper for SAC (one-hot:
+# ~150s per seed); the solving case uses a one-hot 15x15 grid.
 #
 # The random baseline checks the testbed stays hard enough to tell
 # exploration methods apart; each exploration method adds a case that must
@@ -70,7 +73,35 @@ describe "exploration benchmark" do
     inform(report)
     warn(report)
 
-    # Without the bonus PPO covers 0.37-0.55; with it, 0.86-0.93.
+    # Without the bonus PPO covers 0.37-0.55; with it, 0.80-0.89 (0.86-0.93
+    # when the bonus is added to the reward instead of getting its own value
+    # head: exploring a little more, but unable to exploit what it finds).
     results.each { |result| expect(result.coverage).to be >= 0.75 }
+  end
+
+  # Exploring isn't enough: the agent must also learn from the rare goal
+  # rewards it finds. On a 15x15 one-hot four rooms with a 30,000-step
+  # budget (5 seeds): plain PPO never finds the goal (0/5 solved); a count
+  # bonus added to the reward explores 98-100% of the grid and finds the
+  # goal 3-8 times, but still solves 0/5; with PPO's separate intrinsic
+  # value head (the default) it finds the goal 466-651 times and solves 5/5
+  # in the optimal 28 steps.
+  it "PPO with a count bonus solves sparse four rooms" do
+    results = LearningBenchmark.run(
+      seeds: [1, 2, 3],
+      environment: -> { Reinforce::Environments::GridWorld.four_rooms(size: 15, observation: :one_hot) },
+      agent: lambda do |environment|
+        bonus = Reinforce::IntrinsicRewards::CountBased.new(coefficient: 0.1)
+        Reinforce::Algorithms::PPO.new(environment, learning_rate: 1e-3, intrinsic_reward: bonus)
+      end,
+      train: {episodes: 300, steps_per_episode: 100},
+      eval_episodes: 1,
+      max_steps: 100
+    )
+    report = LearningBenchmark.report("PPO + count bonus / sparse four rooms 15x15 (one-hot)", results)
+    inform(report)
+    warn(report)
+
+    expect(LearningBenchmark.mean_success_rate(results)).to be >= 1.0
   end
 end

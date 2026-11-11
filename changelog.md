@@ -34,6 +34,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- `PPO` learns a separate value estimate for an `intrinsic_reward:` by default
+  (`intrinsic_value_head: true`, as in RND): the bonus no longer enters the
+  extrinsic reward but gets its own non-episodic, separately normalized
+  stream, and the policy follows `2 * A_ext + 1 * A_int` (both coefficients
+  configurable, plus an optional linear decay of the intrinsic one). On a
+  sparse one-hot four-rooms GridWorld this took PPO with a count bonus from
+  0/5 to 5/5 seeds solved (15x15, 30,000 steps) and from 1/5 to 5/5 (21x21,
+  100,000 steps); before, it explored almost everything but couldn't learn
+  from the few goal rewards it found. `benchmark/exploration.rb` now also
+  checks that the task is solved.
 - `GridWorld` takes `observation: :one_hot` (a `size * size` vector with a 1.0
   at the agent's cell) besides the default `:coordinates`; positions
   (`#state`, `#obstacles`, `#reachable_states`) are unchanged. With one-hot

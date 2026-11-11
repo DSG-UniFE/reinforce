@@ -58,6 +58,12 @@ module Reinforce
         [action, logprob, entropy, value]
       end
 
+      # A fresh value head shaped like the default one (used by PPO for its
+      # separate intrinsic-reward value estimate).
+      def build_value_head(state_size, network_config: DEFAULT_NETWORK_CONFIG)
+        build_head(state_size, 1, network_config, output_std: 1.0).to(Reinforce::Device.resolve(network_config.device))
+      end
+
       private
 
       # Builds one Reinforce::Networks-shaped MLP head with cleanrl's
@@ -100,13 +106,32 @@ module Reinforce
       # normalize_rewards: see the comment in #initialize.
       # network: the shape of the default policy and value networks (only
       #   used when `policy_model:`/`value_model:` aren't given).
+      #
+      # With an `intrinsic_reward:` (see #initialize):
+      # intrinsic_value_head: learn a separate value estimate for the
+      #   intrinsic reward, as in RND (Burda et al., 2018), instead of adding
+      #   the bonus to the extrinsic reward (false). On a sparse one-hot
+      #   15x15 four-rooms GridWorld (30,000 steps, 5 seeds), a count bonus
+      #   added to the reward explored 98-100% of the grid but solved 0
+      #   seeds; with the separate head it solved all 5 (optimal path). The intrinsic stream is
+      #   non-episodic (novelty doesn't reset with the episode), discounted by
+      #   intrinsic_discount_factor and normalized on its own; the policy
+      #   follows extrinsic_advantage_coefficient * A_ext +
+      #   intrinsic_advantage_coefficient * A_int.
+      # intrinsic_advantage_decay: decay the intrinsic coefficient linearly
+      #   to zero over training (alongside the learning rate), shifting from
+      #   exploration to exploitation.
       Config = Data.define(
         :learning_rate, :clip_param, :ppo_epochs, :minibatch_size, :discount_factor, :gae_lambda,
-        :entropy_coefficient, :max_grad_norm, :normalize_rewards, :network
+        :entropy_coefficient, :max_grad_norm, :normalize_rewards, :network,
+        :intrinsic_value_head, :extrinsic_advantage_coefficient, :intrinsic_advantage_coefficient,
+        :intrinsic_discount_factor, :intrinsic_advantage_decay
       ) do
         def initialize(learning_rate: 2.5e-4, clip_param: 0.2, ppo_epochs: 10, minibatch_size: 32, discount_factor: 0.99,
           gae_lambda: 0.97, entropy_coefficient: 0.01, max_grad_norm: 0.2, normalize_rewards: true,
-          network: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG)
+          network: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG,
+          intrinsic_value_head: true, extrinsic_advantage_coefficient: 2.0, intrinsic_advantage_coefficient: 1.0,
+          intrinsic_discount_factor: 0.99, intrinsic_advantage_decay: false)
           super
         end
       end
@@ -147,9 +172,15 @@ module Reinforce
         @minibatch_size = @config.minibatch_size
         @discount_factor = @config.discount_factor
         @learning_rate = @config.learning_rate
+        @two_heads = !@intrinsic_reward.nil? && @config.intrinsic_value_head
+        if @two_heads
+          @intrinsic_value_model = @agent.build_value_head(environment.state_size, network_config: @config.network)
+          @intrinsic_return_rms = Reinforce::RunningMeanStd.new
+          @intrinsic_discounted_return = 0.0
+        end
         # Create the optimizer
         @metrics = Reinforce::Metrics::Recorder.new
-        @optimizer = Torch::Optim::Adam.new([@agent.policy_model.parameters, @agent.value_model.parameters].flatten, lr: @learning_rate, eps: 1e-5)
+        @optimizer = Torch::Optim::Adam.new(trainable_parameters, lr: @learning_rate, eps: 1e-5)
       end
 
       def save(filename)
@@ -238,6 +269,15 @@ module Reinforce
         reward / Math.sqrt(@return_rms.var + REWARD_NORMALIZATION_EPSILON)
       end
 
+      # Intrinsic rewards are scaled by the running std of their own
+      # non-episodic discounted return (as in RND), so the bonus's scale
+      # doesn't depend on its coefficient or on how familiar states are.
+      def normalize_intrinsic_reward(bonus)
+        @intrinsic_discounted_return = @intrinsic_discounted_return * @config.intrinsic_discount_factor + bonus
+        @intrinsic_return_rms.update(@intrinsic_discounted_return)
+        bonus / Math.sqrt(@intrinsic_return_rms.var + REWARD_NORMALIZATION_EPSILON)
+      end
+
       def build_rollout_buffers(num_steps)
         {
           obs: Torch.zeros(num_steps, @environment.state_size),
@@ -249,7 +289,23 @@ module Reinforce
         }
       end
 
-      def compute_gae(rewards, values, dones, next_value, next_done)
+      # The advantage the policy follows in two-head mode. `remaining` is the
+      # fraction of training left (1.0 for the first rollout), which scales
+      # the intrinsic weight when intrinsic_advantage_decay is on.
+      def combine_advantages(extrinsic, intrinsic, remaining)
+        intrinsic_coefficient = @config.intrinsic_advantage_coefficient
+        intrinsic_coefficient *= remaining if @config.intrinsic_advantage_decay
+        @config.extrinsic_advantage_coefficient * extrinsic + intrinsic_coefficient * intrinsic
+      end
+
+      # Every parameter the optimizer updates (and gradient clipping covers).
+      def trainable_parameters
+        models = [@agent.policy_model, @agent.value_model]
+        models << @intrinsic_value_model if @intrinsic_value_model
+        models.flat_map(&:parameters)
+      end
+
+      def compute_gae(rewards, values, dones, next_value, next_done, discount_factor: @discount_factor)
         rewards_a = rewards.to_a.map(&:to_f)
         values_a = values.to_a.map(&:to_f)
         dones_a = dones.to_a.map(&:to_f)
@@ -267,8 +323,8 @@ module Reinforce
             next_values = values_a[t + 1]
           end
 
-          delta = rewards_a[t] + @discount_factor * next_values * next_nonterminal - values_a[t]
-          lastgaelam = delta + @discount_factor * @gaelam * next_nonterminal * lastgaelam
+          delta = rewards_a[t] + discount_factor * next_values * next_nonterminal - values_a[t]
+          lastgaelam = delta + discount_factor * @gaelam * next_nonterminal * lastgaelam
           advantages[t] = lastgaelam
         end
 
@@ -288,6 +344,8 @@ module Reinforce
         rewards = buffers[:rewards]
         dones = buffers[:dones]
         values = buffers[:values]
+        intrinsic_rewards = Torch.zeros(num_steps)
+        intrinsic_values = Torch.zeros(num_steps)
 
         global_step = 0
         next_obs = observation_tensor(@environment.reset)
@@ -319,6 +377,7 @@ module Reinforce
             Torch.no_grad do
               action, prob, _, value = @agent.get_action_and_value(next_obs)
               values[step] = value.flatten
+              intrinsic_values[step] = @intrinsic_value_model.call(next_obs).flatten if @two_heads
             end
 
             episode_lenth += 1
@@ -333,7 +392,11 @@ module Reinforce
               rollout_next_states << next_obs
               bonus = @intrinsic_reward.call([next_obs]).first
               episode_bonus += bonus
-              training_reward += bonus
+              if @two_heads
+                intrinsic_rewards[step] = normalize_intrinsic_reward(bonus)
+              else
+                training_reward += bonus
+              end
             end
             rewards[step] = @normalize_rewards ? normalize_reward(training_reward) : training_reward
             episode_reward += reward
@@ -358,11 +421,22 @@ module Reinforce
           # calculate the advantages
           returns = nil
           advantages = nil
+          intrinsic_returns = nil
 
           # Calculate the advantages and returns
           Torch.no_grad do
             next_value = @agent.get_value(bootstrap_obs || next_obs).reshape(-1)[0]
             advantages, returns = compute_gae(rewards, values, dones, next_value, next_done)
+            if @two_heads
+              # Non-episodic: no dones, and the stream simply continues into
+              # whatever state comes next, reset or not.
+              next_intrinsic_value = @intrinsic_value_model.call(next_obs).reshape(-1)[0]
+              intrinsic_advantages, intrinsic_returns = compute_gae(
+                intrinsic_rewards, intrinsic_values, Torch.zeros(num_steps), next_intrinsic_value, false,
+                discount_factor: @config.intrinsic_discount_factor
+              )
+              advantages = combine_advantages(advantages, intrinsic_advantages, fract)
+            end
           end
 
           b_obs = obs.reshape(-1, @environment.state_size)
@@ -414,6 +488,10 @@ module Reinforce
               v_loss_clipped = (v_clipped - b_returns[Torch.tensor(mb_inds)]).pow(2)
               v_loss_max = Torch.max(v_loss_unclipped, v_loss_clipped)
               value_loss = 0.5 * v_loss_max.mean
+              if @two_heads
+                new_intrinsic_value = @intrinsic_value_model.call(b_obs[Torch.tensor(mb_inds)]).reshape(-1)
+                value_loss += 0.5 * (new_intrinsic_value - intrinsic_returns[Torch.tensor(mb_inds)]).pow(2).mean
+              end
 
               entropy_loss = entropy.mean
 
@@ -429,7 +507,7 @@ module Reinforce
               # warn "loss: #{loss}"
               loss.backward
               # Gradient clipping calculation
-              clip_grad_norm_(@agent.parameters, @max_grad_norm)
+              clip_grad_norm_(trainable_parameters, @max_grad_norm)
 
               @optimizer.step
             end

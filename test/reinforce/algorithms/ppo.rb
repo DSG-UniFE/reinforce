@@ -214,10 +214,11 @@ describe Reinforce::Algorithms::PPO do
   end
 
   describe "intrinsic reward" do
-    it "adds the bonus for each reached state to the rewards it learns from, keeping metrics extrinsic" do
+    it "with intrinsic_value_head: false, adds the bonus to the rewards it learns from, keeping metrics extrinsic" do
       bonus = Reinforce::IntrinsicRewards::CountBased.new(coefficient: 1.0)
       ppo = Reinforce::Algorithms::PPO.new(
-        counting_environment(episode_length: 2), ppo_epochs: 1, minibatch_size: 4, normalize_rewards: false, intrinsic_reward: bonus
+        counting_environment(episode_length: 2), ppo_epochs: 1, minibatch_size: 4, normalize_rewards: false, intrinsic_reward: bonus,
+        intrinsic_value_head: false
       )
       learned = []
       ppo.define_singleton_method(:compute_gae) do |rewards, *rest|
@@ -233,6 +234,86 @@ describe Reinforce::Algorithms::PPO do
       expect(ppo.metrics[:episode_reward]).to be == [2.0, 2.0]
       expect(ppo.metrics[:intrinsic_reward].size).to be == 2
       expect(bonus.count([1.0])).to be == 2
+    end
+  end
+
+  describe "separate intrinsic value head" do
+    def two_head_agent(**options)
+      Reinforce::Algorithms::PPO.new(
+        counting_environment(episode_length: 2), ppo_epochs: 1, minibatch_size: 4, normalize_rewards: false,
+        intrinsic_reward: Reinforce::IntrinsicRewards::CountBased.new(coefficient: 1.0), intrinsic_value_head: true,
+        intrinsic_discount_factor: 0.5, **options
+      )
+    end
+
+    # Records the arguments of every #compute_gae call.
+    def gae_calls(ppo)
+      calls = []
+      ppo.define_singleton_method(:compute_gae) do |rewards, values, dones, next_value, next_done, **options|
+        calls << {rewards: rewards.to_a, dones: dones.to_a, next_done:, **options}
+        super(rewards, values, dones, next_value, next_done, **options)
+      end
+      calls
+    end
+
+    it "keeps the bonus out of the extrinsic stream and learns a non-episodic intrinsic one" do
+      ppo = two_head_agent
+      calls = gae_calls(ppo)
+
+      ppo.train(episodes: 1, steps_per_episode: 4)
+
+      extrinsic, intrinsic = calls
+      expect(extrinsic[:rewards]).to be == [1.0, 1.0, 1.0, 1.0]
+      expect(intrinsic[:discount_factor]).to be_within(1e-12).of(0.5)
+      expect(intrinsic[:dones]).to be == [0.0, 0.0, 0.0, 0.0]
+      expect(intrinsic[:next_done]).to be == false
+      # Bonuses 1, 1, 1/sqrt(2), 1/sqrt(2), divided by the running std of the
+      # (non-episodic, gamma 0.5) discounted intrinsic return.
+      reference = Reinforce::RunningMeanStd.new
+      discounted = 0.0
+      expected = [1.0, 1.0, 1 / Math.sqrt(2), 1 / Math.sqrt(2)].map do |bonus|
+        discounted = discounted * 0.5 + bonus
+        reference.update(discounted)
+        bonus / Math.sqrt(reference.var + 1e-8)
+      end
+      expect(intrinsic[:rewards].zip(expected).all? { |actual, wanted| (actual - wanted).abs < 1e-5 }).to be == true
+      expect(ppo.metrics[:episode_reward]).to be == [2.0, 2.0]
+    end
+
+    it "trains the intrinsic value head along with the policy and extrinsic value" do
+      TorchTestHelpers.with_torch_seed do
+        ppo = two_head_agent
+        head = ppo.instance_variable_get(:@intrinsic_value_model)
+        snapshot = TorchTestHelpers.parameter_snapshot(head)
+
+        ppo.train(episodes: 2, steps_per_episode: 4)
+
+        expect(ppo.trainable_parameters.size).to be == 3 * ppo.agent.value_model.parameters.size
+        expect(TorchTestHelpers.parameters_changed?(head, snapshot)).to be == true
+      end
+    end
+
+    it "weights the two advantages, optionally decaying the intrinsic weight with training" do
+      extrinsic = Torch.tensor([1.0, -1.0])
+      intrinsic = Torch.tensor([2.0, 4.0])
+
+      constant = two_head_agent.combine_advantages(extrinsic, intrinsic, 0.5)
+      decaying = two_head_agent(intrinsic_advantage_decay: true).combine_advantages(extrinsic, intrinsic, 0.5)
+
+      # Defaults: 2 * A_ext + 1 * A_int; with decay, the 1 becomes 0.5 here.
+      expect(constant.to_a).to be == [4.0, 2.0]
+      expect(decaying.to_a).to be == [3.0, 0.0]
+    end
+
+    it "is on by default" do
+      expect(Reinforce::Algorithms::PPO::Config.new.intrinsic_value_head).to be == true
+    end
+
+    it "only exists when there is an intrinsic reward" do
+      plain = Reinforce::Algorithms::PPO.new(counting_environment)
+
+      expect(plain.instance_variable_get(:@intrinsic_value_model)).to be_nil
+      expect(plain.trainable_parameters.size).to be == 2 * plain.agent.value_model.parameters.size
     end
   end
 end

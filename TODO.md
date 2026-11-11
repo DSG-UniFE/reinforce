@@ -10,7 +10,7 @@ Planned changes to `reinforce`, roughly in the order we intend to tackle them. I
 
 ## Reward-free / unsupervised RL
 
-- **Exploit rare sparse rewards found through exploration.** With one-hot observations, a count bonus makes PPO, DQN and SAC explore 75-97% of the 21x21 four-rooms testbed, but the goal is found so rarely that only one PPO seed in three learns to reach it (in 100,000 steps). Candidates: decaying the bonus coefficient over training, separate intrinsic and extrinsic value estimates (as in the RND paper), or episodic plus lifelong bonuses.
+- **Exploitation with bonuses in DQN and SAC.** PPO's separate intrinsic value head solved sparse four rooms (5/5 seeds); DQN and SAC still add the bonus to the reward and have no equivalent. Twin Q-heads for the intrinsic reward (or a decaying bonus) would be the analogue.
 - **SAC and exploration bonuses from coordinate observations.** From raw (row, column) coordinates, a count bonus doesn't change SAC's coverage (0.43-0.56), while from one-hot observations it raises it from 0.27-0.35 to 0.86-0.93; probably its critic smooths the bonus across neighboring cells. Lower priority now that one-hot exists.
 - **Random Network Distillation (RND)** on the same interface; then move ExDM's `ScoreBonus` onto it too.
 - **Intrinsic Curiosity Module (ICM)**, built on the same intrinsic-reward module.

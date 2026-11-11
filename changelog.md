@@ -39,7 +39,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   reach, and each skill is rewarded by log q(skill | state) - log p(skill).
   The DIAYN-specific work happens in a skill-conditioned environment wrapper,
   so any algorithm can learn the skills (PPO by default);
-  `predict(state, skill:)` runs one. On an open 10x10 GridWorld, 8 skills
+  `predict(state, skill:)` runs one. `discriminator_features:` restricts what
+  the discriminator sees (the paper's "prior knowledge"), e.g. which room the
+  agent is in. On an open 10x10 GridWorld, 8 skills
   become distinguishable from their final states 83-88% of the time (chance:
   12.5%). A new `benchmark/skills.rb` runs in CI.
 - `IntrinsicRewards::RND`: Random Network Distillation (Burda et al., 2018),

@@ -96,4 +96,38 @@ describe Reinforce::Algorithms::DIAYN do
       expect(diayn.metrics[:skill_reward].size).to be == 2000
     end
   end
+
+  describe "discriminator features" do
+    # Only the row matters: the discriminator sees [row].
+    def by_row
+      Reinforce::Algorithms::DIAYN.new(grid, skills: 4, discriminator_features: ->(state) { [state[0]] })
+    end
+
+    it "builds the discriminator over the features, not the full state" do
+      expect(by_row.discriminator.parameters.first.shape).to be == [64, 1]
+    end
+
+    it "judges states only by their features" do
+      TorchTestHelpers.with_torch_seed do
+        diayn = by_row
+
+        expect(diayn.skill_probabilities([1, 0])).to be == diayn.skill_probabilities([1, 2])
+        expect(diayn.skill_reward([1, 0], 2)).to be_within(1e-6).of(diayn.skill_reward([1, 2], 2))
+      end
+    end
+
+    it "trains the discriminator on features, leaving the policy's observations unchanged" do
+      TorchTestHelpers.with_torch_seed do
+        diayn = by_row
+        environment = diayn.skill_environment
+        observation = environment.reset
+
+        environment.step(:down)
+        environment.reset
+
+        expect(observation.size).to be == 2 + 4
+        expect(diayn.metrics[:discriminator_loss].size).to be == diayn.config.discriminator_updates
+      end
+    end
+  end
 end

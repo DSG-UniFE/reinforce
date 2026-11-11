@@ -21,6 +21,13 @@ module Reinforce
     # behaviors that can later be selected between, or fine-tuned, for a
     # real task.
     #
+    # Prior knowledge (`discriminator_features:`): by default the
+    # discriminator sees the full state, and skills only have to be
+    # distinguishable -- which can mean different cells of the starting
+    # room rather than different rooms. As in the paper's "x-y prior", a
+    # feature function restricts what the discriminator sees (e.g. which
+    # room the agent is in), so skills can only differ along those features.
+    #
     # The DIAYN-specific parts live in a SkillEnvironment wrapper (skill
     # sampling, observation augmentation, reward replacement, discriminator
     # training), so the policy is learned by an ordinary algorithm on that
@@ -56,11 +63,16 @@ module Reinforce
 
       # @parameter agent [#call] builds the policy learner for the
       #   skill-conditioned environment it is given; PPO by default.
-      def initialize(environment, config = nil, agent: nil, **hyperparameters)
+      # @parameter discriminator_features [#call, nil] maps a state to the
+      #   feature vector the discriminator sees (see above); the state
+      #   itself by default.
+      def initialize(environment, config = nil, agent: nil, discriminator_features: nil, **hyperparameters)
         @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
         @environment = environment
         @metrics = Reinforce::Metrics::Recorder.new
-        @discriminator = @config.discriminator_network.build(environment.state_size, @config.skills)
+        @discriminator_features = discriminator_features || ->(state) { state }
+        feature_size = features(environment.reset).size
+        @discriminator = @config.discriminator_network.build(feature_size, @config.skills)
         @discriminator_optimizer = Torch::Optim::Adam.new(@discriminator.parameters, lr: @config.discriminator_learning_rate)
         @skill_environment = SkillEnvironment.new(environment, self)
         @agent = (agent || ->(env) { PPO.new(env) }).call(@skill_environment)
@@ -114,8 +126,12 @@ module Reinforce
 
       private
 
+      def features(state)
+        (state.respond_to?(:to_a) ? state.to_a : state).then { |plain| @discriminator_features.call(plain) }.map(&:to_f)
+      end
+
       def state_tensor(states)
-        Torch.tensor(states.map { |state| (state.respond_to?(:to_a) ? state.to_a : state).map(&:to_f) }, dtype: :float32)
+        Torch.tensor(states.map { |state| features(state) }, dtype: :float32)
       end
 
       # Wraps the task environment for DIAYN: a uniformly random skill per

@@ -20,7 +20,17 @@ require_relative "support/skill_benchmark"
 # Known limitation, not checked here: on four-rooms GridWorlds DIAYN's
 # skills are perfectly distinguishable but nearly all stay in the starting
 # room -- its objective rewards being distinguishable, not going far (the
-# well-known DIAYN failure that LSD/DADS and exploration bonuses address).
+# well-known DIAYN failure that LSD/DADS address). Rooms reached by 4
+# skills' greedy runs on an 11x11 four rooms (2,000 rollouts):
+#
+#   DIAYN                                1-2 / 4
+#   + count bonus                        1-2 / 4   (explores more in training,
+#                                                   still ends near the start)
+#   + room-only discriminator features   1, 2, 3 / 4  (can't find other rooms)
+#   + both                               4, 3, 2, 2, 3 / 4  (seeds 1-5)
+#
+# Features define what "different" means and the bonus finds where to be
+# different; together they help, but not yet reliably enough to check here.
 describe "skill discovery benchmark" do
   def open_grid
     -> { Reinforce::Environments::GridWorld.new(10, [0, 0], [9, 9], []) }

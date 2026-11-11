@@ -61,6 +61,9 @@ describe Reinforce::Hyperparameters do
       ->(config, **hp) { Reinforce::IntrinsicRewards::RND.new(2, config, **hp) }, :update_epochs, 2
     ],
     Reinforce::Algorithms::DIAYN => [->(config, **hp) { Reinforce::Algorithms::DIAYN.new(environment, config, **hp) }, :skills, 3],
+    Reinforce::Algorithms::SuccessorFeatures => [
+      ->(config, **hp) { Reinforce::Algorithms::SuccessorFeatures.new(environment, config, tasks: [[1.0, 0.0]], **hp) }, :tau, 0.5
+    ],
     Reinforce::Algorithms::ExDM => [->(config, **hp) { Reinforce::Algorithms::ExDM.new(dataset, config, **hp) }, :noise_std, 0.5]
   }
 

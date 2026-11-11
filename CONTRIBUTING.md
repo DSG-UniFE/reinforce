@@ -68,6 +68,14 @@ bundle exec sus benchmark/skills.rb
 
 Checks that unsupervised skill discovery (`DIAYN`) learns skills that are genuinely different with no reward at all: each of 8 skills is run on an open 10x10 GridWorld, and the discriminator must attribute most runs' final states to the right skill (untrained skills sit at chance level, which a second case checks). The file's header records the numbers and DIAYN's known limitation on four-rooms layouts.
 
+### Zero-shot transfer benchmark
+
+```bash
+bundle exec sus benchmark/transfer.rb
+```
+
+Checks that successor features, pretrained reward-free on a multi-goal four-rooms GridWorld, solve eight unseen tasks (new weightings of the goals and of time) exactly optimally with no further training. About a minute per seed locally; the file's header records the setup and the numbers.
+
 ## Linting
 
 ```bash

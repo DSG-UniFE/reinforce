@@ -127,31 +127,38 @@ module Reinforce
         vector
       end
 
-      def step(action)
+      # Where `action` leads from `position`: one cell in its direction,
+      # unless that's off the grid or an obstacle, in which case the agent
+      # stays put.
+      #
+      # @returns [Array(Array(Integer), Boolean)] the next position, and
+      #   whether the agent bumped into the border or an obstacle.
+      def move(position, action)
         action = ACTIONS[action] if action.is_a?(Integer)
-        # warn "action: #{action}"
-        next_state = @state.dup
-        reward = 0
-        done = false
-
+        next_position = position.dup
         case action
         when :up
-          next_state[0] -= 1 unless next_state[0].zero?
+          next_position[0] -= 1 unless next_position[0].zero?
         when :down
-          next_state[0] += 1 unless next_state[0] == @size - 1
+          next_position[0] += 1 unless next_position[0] == @size - 1
         when :left
-          next_state[1] -= 1 unless next_state[1].zero?
+          next_position[1] -= 1 unless next_position[1].zero?
         when :right
-          next_state[1] += 1 unless next_state[1] == @size - 1
+          next_position[1] += 1 unless next_position[1] == @size - 1
         else
           raise "Invalid action: #{action}"
         end
+        next_position = position.dup if @obstacles.include?(next_position)
 
-        if @obstacles.include?(next_state)
-          next_state = @state.dup  # Stay in the same state if moving into an obstacle
-          reward = -1
-        # if the agent did not move
-        elsif next_state == @state
+        [next_position, next_position == position]
+      end
+
+      def step(action)
+        next_state, bumped = move(@state, action)
+        reward = 0
+        done = false
+
+        if bumped
           reward = -1
         elsif next_state == @goal
           done = true

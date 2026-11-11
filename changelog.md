@@ -34,6 +34,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- `Reinforce::Algorithms::SuccessorFeatures` (Barreto et al., 2017): learns,
+  from transition features alone (`info[:features]`), successor features for
+  the policies of a few training tasks, and solves *new* tasks -- any weight
+  vector over the features -- zero-shot by generalized policy improvement
+  (`predict(state, task:)`). New `Environments::MultiGoalGridWorld` (several
+  goals, features = goal reached + step, reward = features . task, reward-free
+  by default; `four_rooms`, `random_start:`, exact `best_return`). After
+  reward-free pretraining on four basis tasks it solved 8/8 unseen tasks
+  optimally on 5/5 seeds; a new `benchmark/transfer.rb` runs in CI.
+  `GridWorld#move` exposes its movement rule for subclasses.
 - `Reinforce::Algorithms::DIAYN` (Eysenbach et al., 2018): reward-free skill
   discovery. A discriminator learns to tell skills apart from the states they
   reach, and each skill is rewarded by log q(skill | state) - log p(skill).

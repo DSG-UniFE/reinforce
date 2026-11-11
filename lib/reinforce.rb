@@ -18,6 +18,7 @@ require_relative "reinforce/environments/1d_walk"
 require_relative "reinforce/environments/game_2048"
 require_relative "reinforce/environments/gridworld"
 require_relative "reinforce/environments/taxi"
+require_relative "reinforce/environments/multi_goal_gridworld"
 require_relative "reinforce/wrappers"
 require_relative "reinforce/intrinsic_rewards"
 require_relative "reinforce/algorithms/sarsa"
@@ -51,6 +52,7 @@ begin
   require_relative "reinforce/intrinsic_rewards/rnd"
   require_relative "reinforce/algorithms/exdm"
   require_relative "reinforce/algorithms/diayn"
+  require_relative "reinforce/algorithms/successor_features"
 rescue LoadError => error
   raise unless error.path == "torch"
 end

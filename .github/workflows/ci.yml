@@ -79,6 +79,8 @@ jobs:
         run: bundle exec sus benchmark/exploration.rb
       - name: Skill discovery benchmark
         run: bundle exec sus benchmark/skills.rb
+      - name: Zero-shot transfer benchmark
+        run: bundle exec sus benchmark/transfer.rb
 
   test-macos:
     name: Test (macOS Apple Silicon)

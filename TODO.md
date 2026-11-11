@@ -17,7 +17,9 @@ Planned changes to `reinforce`, roughly in the order we intend to tackle them. I
 - **Intrinsic Curiosity Module (ICM)**, built on the same intrinsic-reward module.
 - **DIAYN skills that go somewhere.** On four-rooms layouts DIAYN's skills stay near the start. An exploration bonus alone doesn't change that, nor do room-only discriminator features alone; both together reach 2-4 of 4 rooms (mean 2.8 over 5 seeds). Next candidates: longer training, or a distance-aware objective (LSD, Park et al. 2022) that rewards skills for covering ground.
 - **Use learned skills downstream:** a high-level controller that picks DIAYN skills to solve a task (the hierarchical-RL item below), or fine-tuning one skill on a task's reward.
-- **Successor features**, so a policy can be adapted to new reward weightings without retraining. Needs a task family to evaluate on (e.g. GridWorld with several goal positions).
+- **Successor features without exploring starts.** SF pretraining currently relies on random start states to see every goal; a real system can't reset arbitrarily. Feed it data collected by one of the exploration agents (PPO + count/RND) instead -- SFs learn off-policy, so any data that covers the goals works.
+- **Infer the task from rewards.** `SuccessorFeatures#predict` needs the task's weight vector; add regression of observed rewards on features (r ~ phi . w) for when only rewards are available.
+- **Learned features.** The features are hand-designed (`info[:features]`); learning them (e.g. from reward-free data) would extend successor features to environments without a natural feature set.
 - *Stretch:* Forward-Backward representations for zero-shot RL.
 
 ## Continuous control and further algorithms

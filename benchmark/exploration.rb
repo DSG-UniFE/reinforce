@@ -29,6 +29,12 @@ require_relative "support/learning_benchmark"
 #   DQN + count bonus (0.1)    0.75-0.80   0-2 episodes per seed      0/3
 #   SAC + count bonus (0.1)    0.86-0.93   2-3 episodes per seed      0/3
 #
+# RND (PPO with its separate intrinsic value head, 5 seeds): one-hot 15x15
+# solved 5/5 (like counts); one-hot 21x21 solved 3/5 at 30,000 steps
+# (coverage 0.72-0.88, counts 0.93-0.96) and 5/5 at 100,000; coordinates
+# 21x21 coverage 0.62-0.91 (counts 0.80-0.89). With DQN, one-hot 21x21
+# coverage 0.50-0.81 (counts 0.75-0.89) at ~3x the cost.
+#
 # One-hot makes every algorithm respond to the bonus (SAC barely does from
 # coordinates). Those runs added the bonus to the reward; PPO's separate
 # intrinsic value head (now its default) is what turns exploration into
@@ -86,22 +92,27 @@ describe "exploration benchmark" do
   # goal 3-8 times, but still solves 0/5; with PPO's separate intrinsic
   # value head (the default) it finds the goal 466-651 times and solves 5/5
   # in the optimal 28 steps.
-  it "PPO with a count bonus solves sparse four rooms" do
-    results = LearningBenchmark.run(
-      seeds: [1, 2, 3],
-      environment: -> { Reinforce::Environments::GridWorld.four_rooms(size: 15, observation: :one_hot) },
-      agent: lambda do |environment|
-        bonus = Reinforce::IntrinsicRewards::CountBased.new(coefficient: 0.1)
-        Reinforce::Algorithms::PPO.new(environment, learning_rate: 1e-3, intrinsic_reward: bonus)
-      end,
-      train: {episodes: 300, steps_per_episode: 100},
-      eval_episodes: 1,
-      max_steps: 100
-    )
-    report = LearningBenchmark.report("PPO + count bonus / sparse four rooms 15x15 (one-hot)", results)
-    inform(report)
-    warn(report)
+  {
+    "count bonus" => ->(_environment) { Reinforce::IntrinsicRewards::CountBased.new(coefficient: 0.1) },
+    # RND solved 5/5 seeds here too (28-32 steps), at about twice the cost.
+    "RND" => ->(environment) { Reinforce::IntrinsicRewards::RND.new(environment.state_size) }
+  }.each do |name, build_bonus|
+    it "PPO with #{name} solves sparse four rooms" do
+      results = LearningBenchmark.run(
+        seeds: [1, 2, 3],
+        environment: -> { Reinforce::Environments::GridWorld.four_rooms(size: 15, observation: :one_hot) },
+        agent: lambda do |environment|
+          Reinforce::Algorithms::PPO.new(environment, learning_rate: 1e-3, intrinsic_reward: build_bonus.call(environment))
+        end,
+        train: {episodes: 300, steps_per_episode: 100},
+        eval_episodes: 1,
+        max_steps: 100
+      )
+      report = LearningBenchmark.report("PPO + #{name} / sparse four rooms 15x15 (one-hot)", results)
+      inform(report)
+      warn(report)
 
-    expect(LearningBenchmark.mean_success_rate(results)).to be >= 1.0
+      expect(LearningBenchmark.mean_success_rate(results)).to be >= 1.0
+    end
   end
 end

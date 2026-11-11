@@ -34,6 +34,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- `IntrinsicRewards::RND`: Random Network Distillation (Burda et al., 2018),
+  a bonus equal to a trained predictor's error at reproducing a fixed random
+  network's features, with running per-dimension observation normalization.
+  It needs no exact state matching, unlike `CountBased`. With PPO it solves
+  the sparse one-hot four-rooms tasks as reliably as counts (15x15: 5/5 seeds;
+  21x21 at 100,000 steps: 5/5), at about twice the cost; it's now part of
+  `benchmark/exploration.rb`.
 - `PPO` learns a separate value estimate for an `intrinsic_reward:` by default
   (`intrinsic_value_head: true`, as in RND): the bonus no longer enters the
   extrinsic reward but gets its own non-episodic, separately normalized

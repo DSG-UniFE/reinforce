@@ -12,7 +12,8 @@ Planned changes to `reinforce`, roughly in the order we intend to tackle them. I
 
 - **Exploitation with bonuses in DQN and SAC.** PPO's separate intrinsic value head solved sparse four rooms (5/5 seeds); DQN and SAC still add the bonus to the reward and have no equivalent. Twin Q-heads for the intrinsic reward (or a decaying bonus) would be the analogue.
 - **SAC and exploration bonuses from coordinate observations.** From raw (row, column) coordinates, a count bonus doesn't change SAC's coverage (0.43-0.56), while from one-hot observations it raises it from 0.27-0.35 to 0.86-0.93; probably its critic smooths the bonus across neighboring cells. Lower priority now that one-hot exists.
-- **Random Network Distillation (RND)** on the same interface; then move ExDM's `ScoreBonus` onto it too.
+- **Move ExDM's `ScoreBonus` onto the intrinsic-reward interface,** now that RND (its well-understood relative) is there.
+- **Show where RND beats counts:** a variant of the testbed where exact counts break down (e.g. noisy or continuous observations, so no state is ever seen twice).
 - **Intrinsic Curiosity Module (ICM)**, built on the same intrinsic-reward module.
 - **DIAYN** for reward-free skill discovery.
 - **Successor features**, so a policy can be adapted to new reward weightings without retraining. Needs a task family to evaluate on (e.g. GridWorld with several goal positions).

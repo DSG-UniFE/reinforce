@@ -57,6 +57,9 @@ describe Reinforce::Hyperparameters do
     Reinforce::IntrinsicRewards::CountBased => [
       ->(config, **hp) { Reinforce::IntrinsicRewards::CountBased.new(config, **hp) }, :coefficient, 0.5
     ],
+    Reinforce::IntrinsicRewards::RND => [
+      ->(config, **hp) { Reinforce::IntrinsicRewards::RND.new(2, config, **hp) }, :update_epochs, 2
+    ],
     Reinforce::Algorithms::ExDM => [->(config, **hp) { Reinforce::Algorithms::ExDM.new(dataset, config, **hp) }, :noise_std, 0.5]
   }
 

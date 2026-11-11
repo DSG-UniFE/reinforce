@@ -48,6 +48,7 @@ begin
   require_relative "reinforce/models/denoising_autoencoder"
   require_relative "reinforce/models/dueling_q_network"
   require_relative "reinforce/offline/intrinsic_rewards/score_bonus"
+  require_relative "reinforce/intrinsic_rewards/rnd"
   require_relative "reinforce/algorithms/exdm"
 rescue LoadError => error
   raise unless error.path == "torch"

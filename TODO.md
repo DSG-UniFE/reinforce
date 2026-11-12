@@ -25,7 +25,7 @@ Planned changes to `reinforce`, roughly in the order we intend to tackle them. I
 ## Continuous control and further algorithms
 
 - **Action-space abstraction** (`Discrete`, `Box`, `MultiDiscrete`), with environments declaring their space explicitly instead of algorithms inferring it from `actions.size`.
-- **Gaussian policy heads** for SAC and PPO, and **TD3** as a deterministic continuous-control baseline.
+- **Gaussian policy heads** for PPO (SAC has one: `ContinuousSAC`), and **TD3** as a deterministic continuous-control baseline.
 - **Distributional value learning** (C51 or QR-DQN).
 - **Constrained / safe RL**, starting with Lagrangian PPO.
 - **Model-based RL**, starting with a PETS- or MBPO-style probabilistic ensemble dynamics model.
@@ -41,7 +41,7 @@ Planned changes to `reinforce`, roughly in the order we intend to tackle them. I
 - **MADDPG** for general-sum settings with continuous actions.
 - **COMA** for counterfactual credit assignment.
 - **Parameter sharing** across homogeneous agents as a first-class option; mean-field MARL for large agent counts.
-- **Computing Continuum environment:** a task-offloading/placement simulator with heterogeneous edge, fog and cloud nodes, network latency, energy cost and SLA constraints. It will be built as a single-agent environment first, then in a multi-agent version.
+- **Computing Continuum environment:** a task-offloading/placement simulator with heterogeneous edge, fog and cloud nodes, network latency, energy cost and SLA constraints. `MultiCluster` covers single-agent replica allocation; next are task offloading/placement and a multi-agent version.
 
 ## Cross-cutting
 

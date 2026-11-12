@@ -60,6 +60,31 @@ By default the DQN policy is saved. You can test the trained policy by executing
 
     $ bundle exec examples/dqn_gridworld_test.rb
 
+## Shields
+
+A shield corrects an agent's actions before they are executed and steers its
+training toward safe actions. `Reinforce::Shields` reasons about safety with
+[Logic Tensor Networks](https://github.com/mtortonesi/LTNtorch-rb), so it needs
+the optional `ltntorch` gem and its own `require`:
+
+```ruby
+require "reinforce/shields"
+
+environment = Reinforce::Environments::MultiCluster.hard(clusters: 4)
+safety = Reinforce::Shields::MultiClusterSafety.new(environment)
+shield = Reinforce::Shields::AllocationShield.new(safety, preference: :latency)
+agent = Reinforce::Algorithms::ContinuousSAC.new(environment, shield: shield)
+agent.train(episodes: 60, steps_per_episode: 500)
+```
+
+`MultiClusterSafety` scores an allocation of service replicas with the
+probability that it is safe: probabilistic sensors estimate whether each
+cluster has the resources its replicas need despite delayed telemetry, and an
+LTN formula combines them. `AllocationShield` keeps allocations scoring at least
+a threshold, searches for safer ones by gradient ascent otherwise, and gives the
+agent a differentiable safety loss. `examples/shielded_sac_multi_cluster.rb`
+compares SAC with and without the shield.
+
 ## Define a new environment
 
 Defining a new environment is fairly simple. Use the examples environment as guide in defining your own.
@@ -68,6 +93,7 @@ All you need is to wrap your environment in a class that defines the following m
 2. `reset` - Reset the environment to its initial state.
 3. `state_size` - Return the size of the state space.
 4. `actions` - Return the action space; you can retrieve the number of actions by calling `actions.size`.
+   Environments with continuous actions define `action_space` instead, returning a `Reinforce::Spaces::Box`.
 5. `step` - Execute an action in the environment and return the next state, reward, done, and info.
 6. `render` - Render the environment on specified output, e.g, `$stdout` (optional).
 

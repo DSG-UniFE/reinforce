@@ -34,6 +34,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- `Reinforce::Shields` (`require "reinforce/shields"`, needs the optional
+  `ltntorch` gem): LTN-based safety shields for `ContinuousSAC`.
+  `MultiClusterSafety` scores `MultiCluster` allocations with the probability
+  that they are safe, from probabilistic sensors of resource availability under
+  delayed telemetry combined by a Logic Tensor Network (product t-norm,
+  Łukasiewicz disjunction and a new bounded-sum existential, `BoundedSum`); a
+  test checks it against the exact probability of the corresponding
+  probabilistic logic program. `AllocationShield` keeps allocations above a
+  safety threshold, corrects the others by gradient search over the simplex
+  (`Shields::Simplex.project`), and adds `-log(safety)` to the actor's loss.
+  New example: `examples/shielded_sac_multi_cluster.rb`.
 - `Reinforce::Environments::MultiCluster`: allocation of service replicas
   across the clusters of a Computing Continuum infrastructure with delayed
   telemetry (continuous actions: one share per cluster plus rejection, rounded

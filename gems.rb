@@ -11,6 +11,11 @@ gemspec
 # The gemspec's own requirement stays open-ended for library users.
 gem "torch-rb", "~> 0.27.0"
 
+# Optional: the LTN-based shields (Reinforce::Shields) need ltntorch, which
+# is not on RubyGems yet. To develop against a local checkout:
+#   bundle config set --local local.ltntorch /path/to/LTNtorch-rb
+gem "ltntorch", git: "https://github.com/mtortonesi/LTNtorch-rb.git", branch: "main"
+
 group :examples do
   gem "unicode_plot", ">= 0.0.5"
 end

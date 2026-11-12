@@ -2,26 +2,31 @@
 # frozen_string_literal: true
 
 # Compares Soft Actor-Critic with and without an LTN shield (and the greedy
-# best-fit and random baselines) on multi-cluster replica allocation:
+# best-fit heuristic, with real or perfect telemetry, and random actions) on
+# multi-cluster replica allocation:
 #
 #   bundle exec ruby examples/shielded_sac_multi_cluster.rb --preset hard --clusters 4 --episodes 60
+#   bundle exec ruby examples/shielded_sac_multi_cluster.rb --preset diurnal --steps 1200 --episodes 40
 #
 # Each agent trains on its own environment with the same seed, then all are
 # tested on the same test episodes. The report gives, per agent, the
 # percentages of requested replicas that were served, rejected and in
-# overflow, during training and testing, and the mean reward per step.
+# overflow, during training and testing, and the mean reward per step. With a
+# workload whose load varies (the diurnal preset), test results are also given
+# by the load the arrivals offered: low (below 0.75 of the capacity), mid and
+# high (above the capacity).
 require "optparse"
 require "reinforce/shields"
 
-options = {preset: "hard", clusters: 4, episodes: 60, steps: 500, test_episodes: 10, seeds: [1], agents: %w[sac shielded greedy random]}
+options = {preset: "hard", clusters: 4, episodes: 60, steps: 500, test_episodes: 10, seeds: [1], agents: %w[sac shielded greedy oracle random]}
 OptionParser.new do |parser|
-  parser.on("--preset NAME", %w[easy hard]) { |value| options[:preset] = value }
+  parser.on("--preset NAME", %w[easy hard diurnal]) { |value| options[:preset] = value }
   parser.on("--clusters N", Integer) { |value| options[:clusters] = value }
   parser.on("--episodes N", Integer, "training episodes") { |value| options[:episodes] = value }
   parser.on("--steps N", Integer, "steps per episode") { |value| options[:steps] = value }
   parser.on("--test-episodes N", Integer) { |value| options[:test_episodes] = value }
   parser.on("--seeds LIST", Array) { |value| options[:seeds] = value.map(&:to_i) }
-  parser.on("--agents LIST", Array, "sac, shielded, greedy, random") { |value| options[:agents] = value }
+  parser.on("--agents LIST", Array, "sac, shielded, greedy, oracle, random") { |value| options[:agents] = value }
 end.parse!
 
 def build_environment(options)
@@ -38,6 +43,8 @@ def build_agent(name, environment)
     Reinforce::Algorithms::ContinuousSAC.new(environment, hidden_size: 64, shield: shield)
   when "greedy"
     Reinforce::Environments::MultiCluster::GreedyPolicy.new(environment)
+  when "oracle"
+    Reinforce::Environments::MultiCluster::GreedyPolicy.new(environment, oracle: true)
   when "random"
     space = environment.action_space
     Object.new.tap { |agent| agent.define_singleton_method(:predict) { |_state| space.sample } }
@@ -51,21 +58,28 @@ def summarize(totals, reward, steps)
    overflow: 100 * totals[:overflow] / requested, reward: reward / steps}
 end
 
+LOAD_BANDS = {low: 0.0...0.75, mid: 0.75...1.0, high: 1.0..}
+
+# @returns [Hash] the summary over all the test steps (`all`) and by load band.
 def test(agent, environment, episodes)
-  totals = Hash.new(0.0)
-  reward = 0.0
-  steps = 0
+  totals = Hash.new { |hash, key| hash[key] = {metrics: Hash.new(0.0), reward: 0.0, steps: 0} }
   episodes.times do
     state = environment.reset
     done = false
     until done
+      # the environment, not the agent, sees the true free resources
       state, step_reward, done, info = environment.step(agent.predict(state))
-      info[:metrics].each { |key, value| totals[key] += value }
-      reward += step_reward
-      steps += 1
+      metrics = info[:metrics]
+      bands = [:all]
+      bands << LOAD_BANDS.find { |_band, range| range.cover?(metrics[:offered_load]) }.first if metrics[:offered_load]
+      bands.each do |band|
+        metrics.each { |key, value| totals[band][:metrics][key] += value }
+        totals[band][:reward] += step_reward
+        totals[band][:steps] += 1
+      end
     end
   end
-  summarize(totals, reward, steps)
+  totals.transform_values { |band| summarize(band[:metrics], band[:reward], band[:steps]) }
 end
 
 def format_row(label, summary)
@@ -92,6 +106,11 @@ options[:seeds].each do |seed|
 
     # the same test episodes for every agent
     srand(10_000 + seed)
-    puts format_row("#{name} test", test(agent, build_environment(options), options[:test_episodes])) + format("  (seed %d)", seed)
+    test_environment = build_environment(options)
+    # policies without training read the environment they act on (the oracle's true state)
+    agent = build_agent(name, test_environment) unless agent.respond_to?(:train)
+    results = test(agent, test_environment, options[:test_episodes])
+    puts format_row("#{name} test", results[:all]) + format("  (seed %d)", seed)
+    LOAD_BANDS.each_key { |band| puts format_row("  #{band}", results[band]) if results[band] }
   end
 end

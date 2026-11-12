@@ -63,14 +63,16 @@ module Reinforce
         @clusters = environment.clusters
         config = environment.config
         resources = Reinforce::Environments::MultiCluster::RESOURCES
-        @max_delay = config.max_delay
+        @max_delay = environment.telemetry_delay_bound
         @replica_limit = config.replica_limit
         max_demand = config.max_demand_per_resource
         @capacity = Torch.tensor(environment.capacities)
         @max_demand = Torch.tensor(resources.map { |resource| max_demand[resource].to_f })
-        # The most a step can consume (a whole request) and recover.
+        # The most a step can consume (a whole request) and give back (see
+        # MultiCluster#release_bound).
         @max_consumption = @max_demand * @replica_limit
-        @max_recovery = Torch.tensor(resources.map { |resource| config.recovery.fetch(resource).to_f })
+        release_bound = environment.release_bound
+        @max_recovery = Torch.tensor(resources.map { |resource| release_bound.fetch(resource).to_f })
         @comfort_fraction = comfort_fraction
         @tight_penalty = tight_penalty
         @capacity_threshold = capacity_threshold

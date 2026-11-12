@@ -34,6 +34,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- `MultiCluster` workloads (`Environments::MultiCluster::Workloads`). The
+  default, `Turnover`, keeps the random per-step recovery. `Diurnal` (preset
+  `MultiCluster.diurnal`) makes deployed services hold exactly their resources
+  for a log-normal lifetime and give them back on departure, with Poisson
+  arrivals whose rate follows a sine (thinning), request classes, a target
+  mean load set by Little's law, and the phase of the cycle in the
+  observations. New `telemetry_interval:` scrapes each cluster periodically
+  in time, so measurements span more decisions at peaks. Steps report
+  `utilization` and `offered_load`; `GreedyPolicy.new(environment, oracle:
+  true)` reads the true state; the example reports results by load band.
 - `Reinforce::Shields` (`require "reinforce/shields"`, needs the optional
   `ltntorch` gem): LTN-based safety shields for `ContinuousSAC`.
   `MultiClusterSafety` scores `MultiCluster` allocations with the probability

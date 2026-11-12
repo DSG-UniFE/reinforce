@@ -34,6 +34,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- `Reinforce::Environments::MultiCluster`: allocation of service replicas
+  across the clusters of a Computing Continuum infrastructure with delayed
+  telemetry (continuous actions: one share per cluster plus rejection, rounded
+  to replica counts; a cluster that cannot host all its replicas deploys none
+  of them; reward trading off rejection, overflow, cost and latency). Easy and
+  Hard presets, per-step `info[:metrics]` (served, rejected, overflowing
+  replicas, cost, latency), `#decode` for observations and a greedy best-fit
+  baseline (`MultiCluster::GreedyPolicy`).
 - `Reinforce::Algorithms::ContinuousSAC` (Haarnoja et al., 2018): Soft
   Actor-Critic for continuous actions, with a tanh-squashed Gaussian policy,
   twin critics, automatic entropy tuning (target -(action components)) and a

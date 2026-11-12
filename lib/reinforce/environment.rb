@@ -33,9 +33,19 @@ module Reinforce
       raise NotImplementedError, "#{self.class} must implement #actions"
     end
 
+    # The action space of an environment with continuous actions, which
+    # implements this instead of #actions (see
+    # Reinforce::Algorithms::ContinuousSAC).
+    #
+    # @returns [Reinforce::Spaces::Box]
+    def action_space
+      raise NotImplementedError, "#{self.class} must implement #action_space for continuous actions"
+    end
+
     # Execute an action and advance the environment by one step.
     #
-    # @parameter action [Object] an element of #actions, or its index.
+    # @parameter action [Object] an element of #actions, or its index (an
+    #   element of #action_space for continuous actions).
     # @returns [Array(Object, Numeric, Boolean, Hash)] a 4-tuple of
     #   `(next_state, reward, done, info)`. `info` carries auxiliary
     #   diagnostic data and is `{}` when there is none -- no algorithm in

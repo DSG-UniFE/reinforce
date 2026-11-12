@@ -34,6 +34,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- `Reinforce::Algorithms::ContinuousSAC` (Haarnoja et al., 2018): Soft
+  Actor-Critic for continuous actions, with a tanh-squashed Gaussian policy,
+  twin critics, automatic entropy tuning (target -(action components)) and a
+  tensor replay buffer. Environments declare their action space with
+  `#action_space`, a new `Reinforce::Spaces::Box`. Optional hooks: a `shield:`
+  that corrects actions before execution and adds a safety loss to the actor
+  (base actions are stored in the replay buffer), per-step `info[:metrics]`
+  summed per episode as `episode_<key>`, and `info[:truncated]` for time
+  limits that keep bootstrapping.
 - `Reinforce::Algorithms::SuccessorFeatures` (Barreto et al., 2017): learns,
   from transition features alone (`info[:features]`), successor features for
   the policies of a few training tasks, and solves *new* tasks -- any weight

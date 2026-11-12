@@ -29,6 +29,12 @@ describe Reinforce::Environment do
     end.to raise_exception(NotImplementedError, message: be =~ /must implement #actions/)
   end
 
+  it "raises NotImplementedError with a helpful message when #action_space is not overridden" do
+    expect do
+      bare_environment.action_space
+    end.to raise_exception(NotImplementedError, message: be =~ /must implement #action_space/)
+  end
+
   it "raises NotImplementedError with a helpful message when #step is not overridden" do
     expect do
       bare_environment.step(:some_action)

@@ -85,6 +85,22 @@ a threshold, searches for safer ones by gradient ascent otherwise, and gives the
 agent a differentiable safety loss. `examples/shielded_sac_multi_cluster.rb`
 compares SAC with and without the shield.
 
+## Graph networks
+
+`Reinforce::Graph` holds building blocks for graph neural networks, for
+environments whose state is a graph (such as a Computing Continuum of
+locations, links and services):
+
+- `Graph::MessagePassing`: one round of message passing (an edge model, sum
+  or mean aggregation, a node model), on one node set or between two
+  (bipartite graphs), optionally returning updated edges;
+- `Graph::Temporal`: a recurrent (GRU) state per node across steps;
+- `Graph.aggregate`, `Graph.bidirectional` and `Graph.batch` (many graphs
+  as one, for fast training).
+
+Graphs are plain tensors: node features, an edge index `[2, edges]` and
+optional edge features.
+
 ## Define a new environment
 
 Defining a new environment is fairly simple. Use the examples environment as guide in defining your own.

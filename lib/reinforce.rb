@@ -56,6 +56,7 @@ begin
   require_relative "reinforce/algorithms/exdm"
   require_relative "reinforce/algorithms/diayn"
   require_relative "reinforce/algorithms/successor_features"
+  require_relative "reinforce/graph"
 rescue LoadError => error
   raise unless error.path == "torch"
 end

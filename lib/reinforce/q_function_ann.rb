@@ -50,9 +50,10 @@ module Reinforce
     # @parameter deterministic [Boolean] the greedy (argmax-Q) action if true;
     #   otherwise a sample from a softmax over the Q-values.
     # @returns [Integer] the chosen action's index.
-    def get_action(state, deterministic: true)
+    # @parameter mask [Array, nil] the allowed actions (nil: all).
+    def get_action(state, deterministic: true, mask: nil)
       logits = Torch.no_grad { forward(as_tensor(state)) }
-      CategoricalDistribution.new(logits: logits).choose(deterministic: deterministic)
+      CategoricalDistribution.new(logits: logits, mask: mask).choose(deterministic: deterministic)
     end
 
     def random_action(_state)
@@ -96,6 +97,10 @@ module Reinforce
       # Learning", Section 3.5.2, page 70.
       bootstrap_source = target || self
       next_q_values = Torch.no_grad { bootstrap_source.forward(experience[:next_state]) }
+      # With next-state action masks (experience[:next_mask], nil entries
+      # allowing everything), the bootstrap action is the best allowed one.
+      next_mask = next_mask_tensor(experience[:next_mask], next_q_values)
+      selectable = next_mask ? CategoricalDistribution.masked(next_q_values, next_mask) : next_q_values
 
       # `next_action` entries may be plain Ruby integers or 0-dim Torch
       # tensors depending on which policy produced them, hence #to_i.
@@ -105,9 +110,10 @@ module Reinforce
         raise ArgumentError, "double_dqn: true requires target:" unless target
 
         online_next_q_values = Torch.no_grad { forward(experience[:next_state]) }
+        online_next_q_values = CategoricalDistribution.masked(online_next_q_values, next_mask) if next_mask
         online_next_q_values.argmax(1).to_a
       else
-        next_q_values.argmax(1).to_a
+        selectable.argmax(1).to_a
       end
 
       target_values = compute_td_targets(next_q_values, next_actions, experience[:reward], experience[:done])
@@ -126,6 +132,16 @@ module Reinforce
       @optimizer.step
 
       {loss: loss.item, td_errors: td_errors}
+    end
+
+    # A [batch, actions] boolean tensor from per-sample masks (nil for
+    # all allowed), or nil when no sample has one.
+    def next_mask_tensor(masks, q_values)
+      return nil if masks.nil? || masks.all?(&:nil?)
+
+      width = q_values.size(1)
+      rows = masks.map { |mask| mask || Array.new(width, true) }
+      Torch.tensor(rows, dtype: :bool, device: q_values.device)
     end
 
     # Compute TD targets `reward + discount_factor * Q(next_state,

@@ -33,13 +33,25 @@ module Reinforce
       raise NotImplementedError, "#{self.class} must implement #actions"
     end
 
-    # The action space of an environment with continuous actions, which
-    # implements this instead of #actions (see
-    # Reinforce::Algorithms::ContinuousSAC).
+    # The action space of an environment with continuous actions (see
+    # Reinforce::Algorithms::ContinuousSAC) or multi-discrete ones (see
+    # Reinforce::Algorithms::PPO), which implements this instead of
+    # #actions.
     #
-    # @returns [Reinforce::Spaces::Box]
+    # @returns [Reinforce::Spaces::Box, Reinforce::Spaces::MultiDiscrete]
     def action_space
       raise NotImplementedError, "#{self.class} must implement #action_space for continuous actions"
+    end
+
+    # Which actions are allowed in the current state. Optional: the default
+    # allows every action. Algorithms that support masks (PPO, DQN) never
+    # choose a masked action, in training or in #predict.
+    #
+    # @returns [Array(Boolean), Array(Array(Boolean)), nil] one boolean per
+    #   action (true = allowed); for a multi-discrete #action_space, one
+    #   such Array per dimension; nil for no mask.
+    def action_mask
+      nil
     end
 
     # Execute an action and advance the environment by one step.

@@ -5,9 +5,25 @@
 
 # A categorical distribution over a discrete action space, parametrized by
 # unnormalized logits (a [num_actions] tensor, or [batch, num_actions]).
+#
+# An optional mask (a boolean tensor of the logits' shape, or an Array of
+# booleans) rules actions out: their logits become MASKED_LOGIT, so they
+# are never sampled or chosen greedily and get (practically) zero
+# probability. A large finite value rather than -infinity keeps
+# log-probabilities and the entropy finite (0 * -inf would be NaN).
 class CategoricalDistribution
-  def initialize(logits:)
-    @logits = logits
+  MASKED_LOGIT = -1e9
+
+  attr_reader :logits
+
+  def initialize(logits:, mask: nil)
+    @logits = mask.nil? ? logits : self.class.masked(logits, mask)
+  end
+
+  # `logits` with the actions `mask` rules out set to MASKED_LOGIT.
+  def self.masked(logits, mask)
+    mask = Torch.tensor(mask, dtype: :bool, device: logits.device) unless mask.is_a?(Torch::Tensor)
+    Torch.where(mask.to(logits.device), logits, Torch.full_like(logits, MASKED_LOGIT))
   end
 
   def log_probability(index)

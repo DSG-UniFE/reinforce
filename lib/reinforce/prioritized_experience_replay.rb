@@ -48,8 +48,10 @@ module Reinforce
       @count
     end
 
-    def update(state, action, next_state, reward, done, priority: @max_priority)
-      store(@pos, state, action, next_state, reward, done, priority)
+    # next_mask: the actions allowed in next_state (see
+    # Reinforce::Environment#action_mask), or nil for all.
+    def update(state, action, next_state, reward, done, priority: @max_priority, next_mask: nil)
+      store(@pos, state, action, next_state, reward, done, priority, next_mask)
       advance
     end
 
@@ -84,8 +86,10 @@ module Reinforce
         exp[:next_state] << @experience[:next_state][data_index]
         exp[:reward] << @experience[:reward][data_index]
         exp[:done] << @experience[:done][data_index]
+        exp[:next_mask] << @experience[:next_mask][data_index]
         exp[:indices] << data_index
       end
+      sampled.delete(:next_mask) if sampled[:next_mask].all?(&:nil?)
 
       sampled[:weights] = importance_sampling_weights(picks)
       @beta = [@beta + @beta_increment, 1.0].min
@@ -115,7 +119,8 @@ module Reinforce
       weights.map { |weight| weight / max_weight }
     end
 
-    def store(index, state, action, next_state, reward, done, priority)
+    def store(index, state, action, next_state, reward, done, priority, next_mask = nil)
+      @experience[:next_mask][index] = next_mask
       @experience[:state][index] = state
       @experience[:action][index] = action
       @experience[:next_state][index] = next_state
@@ -134,7 +139,7 @@ module Reinforce
     def no_experience
       # For efficiency reasons the arrays grow lazily (index assignment
       # extends them) rather than being preallocated to @capacity.
-      {state: [], action: [], next_state: [], reward: [], done: []}
+      {state: [], action: [], next_state: [], reward: [], done: [], next_mask: []}
     end
   end
 end

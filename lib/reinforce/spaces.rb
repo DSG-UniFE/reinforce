@@ -89,5 +89,75 @@ module Reinforce
         bound.is_a?(Array) ? bound.map(&:to_f) : Array.new(size, bound.to_f)
       end
     end
+
+    # A multi-discrete space: vectors of indices, the i-th in 0...sizes[i]
+    # (one categorical choice per dimension, e.g. scale each service up,
+    # down or not at all).
+    #
+    #   space = Reinforce::Spaces::MultiDiscrete.new([3, 3, 2])
+    #   space.sample # => e.g. [2, 0, 1]
+    #
+    # An environment declaring one (see Reinforce::Environment#action_space)
+    # takes such vectors in #step, and its #action_mask, if any, has one
+    # Array of booleans per dimension.
+    class MultiDiscrete
+      # @attribute [Array(Integer)] the number of choices in each dimension.
+      attr_reader :sizes
+
+      def initialize(sizes)
+        raise ArgumentError, "sizes must be positive Integers" if sizes.empty? || !sizes.all? { |n| n.is_a?(Integer) && n.positive? }
+
+        @sizes = sizes.dup.freeze
+        freeze
+      end
+
+      # @returns [Integer] the number of dimensions.
+      def size = @sizes.size
+
+      # @returns [Integer] the number of choices over all dimensions (the
+      #   width of a policy head producing one logit per choice).
+      def total = @sizes.sum
+
+      def sample = @sizes.map { |n| rand(n) }
+
+      def contains?(action)
+        action.size == size && action.each_with_index.all? { |index, i| index.is_a?(Integer) && index.between?(0, @sizes[i] - 1) }
+      end
+
+      def ==(other) = other.is_a?(MultiDiscrete) && other.sizes == @sizes
+      alias_method :eql?, :==
+
+      def hash = [self.class, @sizes].hash
+
+      def inspect = "MultiDiscrete(#{@sizes.inspect})"
+    end
+
+    # The environment's multi-discrete action space, or nil when its
+    # actions are discrete (it lists them in #actions).
+    def self.multi_discrete(environment)
+      return nil unless environment.respond_to?(:action_space)
+
+      space = begin
+        environment.action_space
+      rescue NotImplementedError
+        nil
+      end
+      space.is_a?(MultiDiscrete) ? space : nil
+    end
+
+    # The environment's current action mask as one flat Array of booleans
+    # (dimensions concatenated for a multi-discrete space), or nil when it
+    # doesn't mask actions.
+    def self.flat_action_mask(environment)
+      return nil unless environment.respond_to?(:action_mask)
+
+      mask = environment.action_mask
+      return nil if mask.nil?
+
+      flat = mask.first.is_a?(Array) ? mask.flatten : mask
+      raise ArgumentError, "the action mask allows no action" if mask.first.is_a?(Array) ? mask.any? { |m| m.none? } : flat.none?
+
+      flat
+    end
   end
 end

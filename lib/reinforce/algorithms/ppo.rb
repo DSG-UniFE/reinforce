@@ -2,6 +2,8 @@
 
 require_relative "../experience"
 require_relative "../categorical_distribution"
+require_relative "../multi_categorical_distribution"
+require_relative "../spaces"
 require_relative "../networks"
 require_relative "../running_mean_std"
 require_relative "../hyperparameters"
@@ -22,9 +24,12 @@ module Reinforce
 
       attr_reader :policy_model, :value_model
 
+      # sizes: the choices per dimension of a multi-discrete action space
+      # (num_actions is then their sum), nil for a discrete one.
       def initialize(state_size, num_actions, policy_model = nil, value_model = nil,
-        network_config: DEFAULT_NETWORK_CONFIG)
+        network_config: DEFAULT_NETWORK_CONFIG, sizes: nil)
         super()
+        @sizes = sizes
         if policy_model.nil? || value_model.nil?
           @policy_model = build_head(state_size, num_actions, network_config, output_std: 0.01)
           @value_model = build_head(state_size, 1, network_config, output_std: 1.0)
@@ -47,15 +52,26 @@ module Reinforce
         @value_model.call(x)
       end
 
-      def get_action_and_value(x, action = nil)
+      # mask: booleans shaped like the policy's logits (see
+      # CategoricalDistribution), or nil.
+      def get_action_and_value(x, action = nil, mask: nil)
         logits = @policy_model.call(x)
-        # warn "logits: #{logits}"
-        pd = CategoricalDistribution.new(logits: logits)
+        pd = distribution(logits, mask)
         action = pd.sample if action.nil?
         value = @value_model.call(x)
         logprob = pd.log_probability(action)
         entropy = pd.entropy
         [action, logprob, entropy, value]
+      end
+
+      # The action distribution for these logits: one categorical, or one
+      # per dimension of a multi-discrete space.
+      def distribution(logits, mask = nil)
+        if @sizes
+          MultiCategoricalDistribution.new(logits: logits, sizes: @sizes, mask: mask)
+        else
+          CategoricalDistribution.new(logits: logits, mask: mask)
+        end
       end
 
       # A fresh value head shaped like the default one (used by PPO for its
@@ -163,8 +179,14 @@ module Reinforce
         @discounted_return = 0.0
         @entropy_coefficient = @config.entropy_coefficient
         @max_grad_norm = @config.max_grad_norm
+        # Multi-discrete action spaces get one categorical per dimension;
+        # action masks (Reinforce::Environment#action_mask) are honored
+        # whenever the environment provides one.
+        @space = Reinforce::Spaces.multi_discrete(environment)
+        @num_logits = @space ? @space.total : environment.actions.size
         @agent = ActorCriticNetwork.new(
-          environment.state_size, environment.actions.size, policy_model, value_model, network_config: @config.network
+          environment.state_size, @num_logits, policy_model, value_model, network_config: @config.network,
+          sizes: @space&.sizes
         )
         @gaelam = @config.gae_lambda
         @clip_param = @config.clip_param
@@ -197,13 +219,20 @@ module Reinforce
         @agent.eval
       end
 
-      def predict(state, deterministic: true)
+      # @parameter mask [Array, nil] the actions allowed in `state` (see
+      #   Reinforce::Environment#action_mask); by default, the environment's
+      #   current mask.
+      # @returns an element of the environment's #actions, or for a
+      #   multi-discrete space an Array of indices.
+      def predict(state, deterministic: true, mask: Reinforce::Spaces.flat_action_mask(@environment))
         # A ternary, not `argument = ... unless state.is_a?(Torch::Tensor)`:
         # that modifier form assigns nil whenever the condition holds, so a
         # state that was already a Tensor reached the policy as nil.
         argument = state.is_a?(Torch::Tensor) ? state : Torch.tensor(state, dtype: :float32)
         logits = Torch.no_grad { @agent.policy_model.call(argument) }
-        @environment.actions[CategoricalDistribution.new(logits: logits).choose(deterministic: deterministic)]
+        mask = mask.flatten if mask&.first.is_a?(Array)
+        choice = @agent.distribution(logits, mask).choose(deterministic: deterministic)
+        @space ? choice : @environment.actions[choice]
       end
 
       def clip_grad_norm_(parameters, max_norm, norm_type: 2)
@@ -281,7 +310,8 @@ module Reinforce
       def build_rollout_buffers(num_steps)
         {
           obs: Torch.zeros(num_steps, @environment.state_size),
-          actions: Torch.zeros(num_steps),
+          actions: @space ? Torch.zeros(num_steps, @space.size) : Torch.zeros(num_steps),
+          masks: Torch.ones(num_steps, @num_logits, dtype: :bool),
           logprobs: Torch.zeros(num_steps, dtype: :float32),
           rewards: Torch.zeros(num_steps),
           dones: Torch.zeros(num_steps, dtype: :float32),
@@ -344,6 +374,8 @@ module Reinforce
         rewards = buffers[:rewards]
         dones = buffers[:dones]
         values = buffers[:values]
+        masks = buffers[:masks]
+        masked = false # whether the environment has masked anything yet
         intrinsic_rewards = Torch.zeros(num_steps)
         intrinsic_values = Torch.zeros(num_steps)
 
@@ -373,9 +405,14 @@ module Reinforce
             dones[step] = next_done ? 1.0 : 0.0
 
             action, prob, value = nil
+            flat_mask = Reinforce::Spaces.flat_action_mask(@environment)
+            if flat_mask
+              masked = true
+              masks[step] = Torch.tensor(flat_mask, dtype: :bool)
+            end
 
             Torch.no_grad do
-              action, prob, _, value = @agent.get_action_and_value(next_obs)
+              action, prob, _, value = @agent.get_action_and_value(next_obs, nil, mask: flat_mask && masks[step])
               values[step] = value.flatten
               intrinsic_values[step] = @intrinsic_value_model.call(next_obs).flatten if @two_heads
             end
@@ -385,7 +422,7 @@ module Reinforce
             actions[step] = action
             logprobs[step] = prob
 
-            next_obs, reward, next_done = @environment.step(action.to_i)
+            next_obs, reward, next_done = @environment.step(@space ? action.to_a.map(&:to_i) : action.to_i)
             training_reward = reward
             if @intrinsic_reward
               @intrinsic_reward.observe(next_obs)
@@ -441,7 +478,7 @@ module Reinforce
 
           b_obs = obs.reshape(-1, @environment.state_size)
           b_logprobs = logprobs.reshape(-1)
-          b_actions = actions.reshape(-1)
+          b_actions = @space ? actions.reshape(-1, @space.size) : actions.reshape(-1)
           b_returns = returns.reshape(-1)
           b_advantages = advantages.reshape(-1)
           b_values = values.reshape(-1)
@@ -456,7 +493,9 @@ module Reinforce
               # Torch.tensor(...), as this used to, copies its values but drops
               # its autograd history, so the entropy bonus below contributed no
               # gradient at all and PPO trained without one.
-              _, newlogprob, entropy, newvalue = @agent.get_action_and_value(b_obs[Torch.tensor(mb_inds)], b_actions[Torch.tensor(mb_inds)])
+              # Recompute under the masks the actions were chosen with.
+              mb_mask = masked ? masks[Torch.tensor(mb_inds)] : nil
+              _, newlogprob, entropy, newvalue = @agent.get_action_and_value(b_obs[Torch.tensor(mb_inds)], b_actions[Torch.tensor(mb_inds)], mask: mb_mask)
               logratio = newlogprob - b_logprobs[Torch.tensor(mb_inds)]
               ratio = logratio.exp
 

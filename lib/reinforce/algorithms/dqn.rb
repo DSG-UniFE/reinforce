@@ -10,6 +10,7 @@ require_relative "../q_function_ann"
 require_relative "../networks"
 require_relative "../hyperparameters"
 require_relative "../models/dueling_q_network"
+require_relative "../spaces"
 
 module Reinforce
   module Algorithms
@@ -89,16 +90,19 @@ module Reinforce
         @metrics = Reinforce::Metrics::Recorder.new
       end
 
-      def choose_action(state, epsilon)
-        # Choose action according to the policy, with epsilon greedy algorithm
-        # for governing the exploration / exploitation trade-off.
+      # Epsilon-greedy over the actions `mask` allows (all of them when nil):
+      # a random allowed action with probability epsilon, otherwise the
+      # allowed action with the highest Q-value.
+      def choose_action(state, epsilon, mask = nil)
         if epsilon > rand
-          @q_function_model.random_action(state)
+          return @q_function_model.random_action(state) if mask.nil?
+
+          allowed = mask.each_index.select { |i| mask[i] }
+          allowed[rand(allowed.size)]
         else
-          # Obtain the logits of each action from the model
-          logits = @q_function_model.forward(state)
-          # Return greedy action from the distribution
-          logits.argmax.to_i
+          q_values = @q_function_model.forward(state)
+          q_values = CategoricalDistribution.masked(q_values, mask) if mask
+          q_values.argmax.to_i
         end
       end
 
@@ -135,11 +139,14 @@ module Reinforce
           progress = global_step.to_f / total_steps * 100
           progress_output&.print "\rTraining: #{progress.round(2)}%" if global_step % 100 == 0
 
-          # Choose an action, according to epsilon-greedy policy
-          action = choose_action(state, epsilon)
+          # Choose an action, according to epsilon-greedy policy, among the
+          # allowed ones (see Reinforce::Environment#action_mask)
+          action = choose_action(state, epsilon, Reinforce::Spaces.flat_action_mask(@environment))
 
           # Take the action and observe the next state and reward
           next_state, reward, done = @environment.step(action.to_i)
+          # The bootstrap target maximizes over the actions allowed next.
+          next_mask = done ? nil : Reinforce::Spaces.flat_action_mask(@environment)
           actions_left -= 1
           episode_length += 1
           episode_reward += reward
@@ -149,7 +156,7 @@ module Reinforce
           end
 
           # Store the experience in the replay memory
-          @prioritized_experience_replay.update(state, action, next_state, reward, done)
+          @prioritized_experience_replay.update(state, action, next_state, reward, done, next_mask: next_mask)
 
           # Update the count of steps taken so far
           global_step += 1
@@ -197,8 +204,10 @@ module Reinforce
         end
       end
 
-      def predict(state, deterministic: true)
-        @environment.actions[@q_function_model.get_action(state, deterministic: deterministic)]
+      # @parameter mask [Array, nil] the actions allowed in `state`; by
+      #   default, the environment's current mask.
+      def predict(state, deterministic: true, mask: Reinforce::Spaces.flat_action_mask(@environment))
+        @environment.actions[@q_function_model.get_action(state, deterministic: deterministic, mask: mask)]
       end
 
       # Save the model

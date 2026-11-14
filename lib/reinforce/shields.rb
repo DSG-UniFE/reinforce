@@ -14,5 +14,7 @@
 require_relative "../reinforce"
 require_relative "shields/simplex"
 require_relative "shields/bounded_sum"
+require_relative "shields/product"
+require_relative "shields/discrete_shield"
 require_relative "shields/allocation_shield"
 require_relative "shields/multi_cluster_safety"

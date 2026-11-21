@@ -120,4 +120,28 @@ describe Reinforce::Shields::AllocationShield do
 
     expect(loss.item).to be_within(1e-3).of(-Math.log(1e-8))
   end
+
+  it "averages the scores of sampled actions before the log" do
+    # two samples for each of two states, scored 1/3 and 1 for state 0, 0
+    # and 1 for state 1 (the first share)
+    actions = Torch.tensor([
+      [[0.0, 0.0, 0.0], [-1.0, 1.0, -1.0]],
+      [[1.0, -1.0, -1.0], [1.0, -1.0, -1.0]]
+    ]).requires_grad!(true)
+    observations = Torch.tensor([[0.0], [1.0]])
+    loss = subject.new(safety).safety_loss(observations, actions)
+    loss.backward
+
+    # -log P(safe) per state, then averaged: -log(2/3) and -log(1/2)
+    expect(loss.item).to be_within(1e-5).of((-Math.log(2.0 / 3) - Math.log(0.5)) / 2)
+    expect(actions.grad[0, 0, 0].item).to be < 0.0
+  end
+
+  it "is the deterministic loss for a single sample" do
+    shield = subject.new(safety)
+    actions = Torch.tensor([[0.0, 0.0, 0.0], [0.5, -1.0, 0.2]])
+    observations = Torch.zeros(2, 1)
+
+    expect(shield.safety_loss(observations, actions.unsqueeze(0)).item).to be_within(1e-6).of(shield.safety_loss(observations, actions).item)
+  end
 end

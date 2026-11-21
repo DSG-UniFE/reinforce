@@ -98,11 +98,12 @@ describe Reinforce::Algorithms::PPO do
     # differentiable safety loss pulling the policy's action toward -1.
     let(:shield) do
       Class.new do
-        attr_reader :calls, :loss_calls, :last_info
+        attr_reader :calls, :loss_calls, :shapes, :last_info
 
         def initialize
           @calls = []
           @loss_calls = 0
+          @shapes = []
         end
 
         def call(state, action)
@@ -113,6 +114,7 @@ describe Reinforce::Algorithms::PPO do
 
         def safety_loss(states, actions)
           @loss_calls += 1
+          @shapes << actions.shape
           raise "actions must be in [-1, 1]" unless actions.abs.max.item <= 1.0
 
           ((actions + 1.0)**2).mean
@@ -154,6 +156,33 @@ describe Reinforce::Algorithms::PPO do
       end
     end
 
+    it "scores sampled actions, or the deterministic ones without samples" do
+      TorchTestHelpers.with_torch_seed do
+        subject.new(ContinuousTarget.new, shield: shield, safety_samples: 4, ppo_epochs: 1, minibatch_size: 8).train(episodes: 1, steps_per_episode: 8)
+        subject.new(ContinuousTarget.new, shield: shield, safety_samples: 0, ppo_epochs: 1, minibatch_size: 8).train(episodes: 1, steps_per_episode: 8)
+
+        expect(shield.shapes).to be == [[4, 8, 1], [8, 1]]
+      end
+    end
+
+    it "reaches the standard deviation with sampled actions" do
+      gradient = lambda do |samples|
+        TorchTestHelpers.with_torch_seed do
+          agent = subject.new(ContinuousTarget.new, shield: shield, safety_samples: samples)
+          shield.safety_loss(Torch.tensor([[0.2], [-0.5]]), agent.safety_actions(Torch.tensor([[0.2], [-0.5]]))).backward
+          [agent.agent.log_std.grad&.abs&.sum&.item.to_f, agent.agent.policy_model.parameters.sum { |p| p.grad.abs.sum.item }]
+        end
+      end
+
+      sampled_std, sampled_mean = gradient.call(8)
+      deterministic_std, deterministic_mean = gradient.call(0)
+      expect(sampled_std).to be > 0.0
+      expect(sampled_mean).to be > 0.0
+      # the deterministic action doesn't depend on the spread
+      expect(deterministic_std).to be == 0.0
+      expect(deterministic_mean).to be > 0.0
+    end
+
     it "is only for continuous actions" do
       discrete = Class.new do
         include Reinforce::Environment
@@ -164,6 +193,22 @@ describe Reinforce::Algorithms::PPO do
       end.new
 
       expect { subject.new(discrete, shield: shield) }.to raise_exception(ArgumentError, message: be =~ /DiscreteShield/)
+    end
+  end
+
+  with "a target KL divergence" do
+    def updates(target_kl)
+      TorchTestHelpers.with_torch_seed do
+        agent = subject.new(ContinuousTarget.new, target_kl: target_kl, learning_rate: 5e-2, ppo_epochs: 4, minibatch_size: 8)
+        agent.train(episodes: 3, steps_per_episode: 32)
+        agent.metrics[:approx_kl].size
+      end
+    end
+
+    it "stops a rollout's updates once the policy moves too far" do
+      # 4 epochs of 4 minibatches per rollout, unless stopped
+      expect(updates(nil)).to be == 3 * 4 * 4
+      expect(updates(1e-6)).to be < 3 * 4 * 4
     end
   end
 

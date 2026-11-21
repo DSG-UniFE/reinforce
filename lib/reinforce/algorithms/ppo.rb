@@ -129,9 +129,15 @@ module Reinforce
     #   part of the environment PPO learns in, so the value of proposing an
     #   action is its value under the shield. #predict is shielded too.
     # - `shield.safety_loss(states, actions)` returns a differentiable scalar
-    #   loss for a batch of states and the policy's deterministic actions
-    #   (tanh of the mean), added to each minibatch's loss with weight
-    #   `safety_weight`.
+    #   loss for a batch of states and actions of the policy, added to each
+    #   minibatch's loss with weight `safety_weight`. With `safety_samples`
+    #   M > 0, the actions are M reparameterized samples per state, tanh(mean
+    #   + std * noise) shaped samples x batch x components, so the loss
+    #   reaches the standard deviation as well as the mean and scores the
+    #   actions the policy explores (Reinforce::Shields::AllocationShield
+    #   averages their scores before the log: -log P(safe) under the
+    #   policy). With 0, they are its deterministic actions, tanh of the
+    #   mean, batch x components.
     # - `shield.last_info` (optional) returns a Hash of numbers about the
     #   last #call, summed over each episode and recorded as
     #   `shield_<key>`.
@@ -168,6 +174,14 @@ module Reinforce
       #   standard deviation of the policy's Gaussian (see #initialize).
       # safety_weight: the weight of the shield's safety loss; unused
       #   without a shield.
+      # safety_samples: the sampled actions per state the safety loss
+      #   scores; 0 scores the deterministic action (see the class comment).
+      # target_kl: stop a rollout's updates early, before the step that
+      #   would follow a minibatch whose approximate KL divergence from the
+      #   rollout's policy exceeds 1.5 * target_kl (as in Stable-Baselines3);
+      #   nil never stops. It keeps updates near PPO's trust region when
+      #   another loss (e.g. the safety loss) moves the policy, which the
+      #   ratio clipping doesn't limit.
       #
       # With an `intrinsic_reward:` (see #initialize):
       # intrinsic_value_head: learn a separate value estimate for the
@@ -187,14 +201,15 @@ module Reinforce
         :learning_rate, :clip_param, :ppo_epochs, :minibatch_size, :discount_factor, :gae_lambda,
         :entropy_coefficient, :max_grad_norm, :normalize_rewards, :network,
         :intrinsic_value_head, :extrinsic_advantage_coefficient, :intrinsic_advantage_coefficient,
-        :intrinsic_discount_factor, :intrinsic_advantage_decay, :initial_log_std, :safety_weight
+        :intrinsic_discount_factor, :intrinsic_advantage_decay, :initial_log_std, :safety_weight,
+        :safety_samples, :target_kl
       ) do
         def initialize(learning_rate: 2.5e-4, clip_param: 0.2, ppo_epochs: 10, minibatch_size: 32, discount_factor: 0.99,
           gae_lambda: 0.97, entropy_coefficient: 0.01, max_grad_norm: 0.2, normalize_rewards: true,
           network: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG,
           intrinsic_value_head: true, extrinsic_advantage_coefficient: 2.0, intrinsic_advantage_coefficient: 1.0,
           intrinsic_discount_factor: 0.99, intrinsic_advantage_decay: false, initial_log_std: 0.0,
-          safety_weight: 0.1)
+          safety_weight: 0.1, safety_samples: 8, target_kl: nil)
           super
         end
       end
@@ -438,6 +453,18 @@ module Reinforce
         @box.scale(action)
       end
 
+      # The policy's actions the safety loss scores (see the class comment):
+      # safety_samples reparameterized samples per state, or the
+      # deterministic actions.
+      def safety_actions(states)
+        mean = @agent.policy_model.call(states)
+        samples = @config.safety_samples
+        return SquashedGaussianDistribution.squash(mean) if samples.zero?
+
+        noise = Torch.randn(samples, *mean.shape, dtype: mean.dtype)
+        SquashedGaussianDistribution.squash(mean.unsqueeze(0) + (@agent.log_std.exp * noise))
+      end
+
       def observation_array(state)
         state.is_a?(Torch::Tensor) ? state.reshape(-1).to_a : Array(state).flatten.map(&:to_f)
       end
@@ -613,7 +640,10 @@ module Reinforce
           b_inds = (0...num_steps).to_a
           clipfracs = []
 
+          stopped = false
           1.upto(@ppo_epochs) do |epoch|
+            break if stopped
+
             b_inds.shuffle!
             minibatches(b_inds).each do |mb_inds|
               # Use the entropy tensor as returned: re-wrapping it in
@@ -625,6 +655,13 @@ module Reinforce
               _, newlogprob, entropy, newvalue = @agent.get_action_and_value(b_obs[Torch.tensor(mb_inds)], b_actions[Torch.tensor(mb_inds)], mask: mb_mask)
               logratio = newlogprob - b_logprobs[Torch.tensor(mb_inds)]
               ratio = logratio.exp
+              # Schulman's low-variance estimator of KL(old || new).
+              approx_kl = Torch.no_grad { ((ratio - 1.0) - logratio).mean.item }
+              @metrics.record(:approx_kl, approx_kl)
+              if @config.target_kl && approx_kl > 1.5 * @config.target_kl
+                stopped = true
+                break
+              end
 
               # Calculate the clipfrac
               # Not logging them at the moment
@@ -665,7 +702,7 @@ module Reinforce
               loss = pg_loss - @entropy_coefficient * entropy_loss + value_loss * 0.5
               if @shield
                 mb_obs = b_obs[Torch.tensor(mb_inds)]
-                safety_loss = @shield.safety_loss(mb_obs, SquashedGaussianDistribution.squash(@agent.policy_model.call(mb_obs)))
+                safety_loss = @shield.safety_loss(mb_obs, safety_actions(mb_obs))
                 loss += safety_loss * @config.safety_weight
                 @metrics.record(:safety_loss, safety_loss.item)
               end

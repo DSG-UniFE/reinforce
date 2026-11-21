@@ -26,7 +26,10 @@ module Reinforce
     #
     # For training, #safety_loss is -log(max(score, probability_floor)) of
     # the actor's deterministic actions, averaged over a batch: differentiable
-    # through the safety model into the actor.
+    # through the safety model into the actor. Given samples of the actor's
+    # actions instead, it averages their scores before the log, estimating
+    # -log P(safe) of an action drawn from the policy (the loss of
+    # probabilistic logic policy gradients, Yang et al., 2023).
     #
     # The `safety` model responds to:
     #
@@ -83,10 +86,20 @@ module Reinforce
       end
 
       # @parameter states [Torch::Tensor] batch x observation size.
-      # @parameter actions [Torch::Tensor] batch x components, in [-1, 1].
+      # @parameter actions [Torch::Tensor] batch x components, in [-1, 1]
+      #   (one action per state), or samples x batch x components (several
+      #   sampled actions per state, whose scores are averaged before the
+      #   log).
       # @returns [Torch::Tensor] the mean safety loss (a scalar).
       def safety_loss(states, actions)
-        scores = @safety.score(states, Simplex.project((actions + 1.0) / 2.0))
+        scores = if actions.dim == 3
+          samples, batch, components = actions.shape
+          # rows m * batch + b: sample m of state b
+          flat = actions.reshape(samples * batch, components)
+          @safety.score(states.repeat(samples, 1), Simplex.project((flat + 1.0) / 2.0)).reshape(samples, batch).mean(0)
+        else
+          @safety.score(states, Simplex.project((actions + 1.0) / 2.0))
+        end
         (-Torch.log(Torch.clamp(scores, min: @probability_floor))).mean
       end
 

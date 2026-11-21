@@ -109,7 +109,8 @@ All you need is to wrap your environment in a class that defines the following m
 2. `reset` - Reset the environment to its initial state.
 3. `state_size` - Return the size of the state space.
 4. `actions` - Return the action space; you can retrieve the number of actions by calling `actions.size`.
-   Environments with continuous actions define `action_space` instead, returning a `Reinforce::Spaces::Box`;
+   Environments with continuous actions define `action_space` instead, returning a `Reinforce::Spaces::Box`
+   (ContinuousSAC, and PPO with a tanh-squashed Gaussian policy);
    environments that make several discrete choices per step (PPO) return a `Reinforce::Spaces::MultiDiscrete`
    and take an Array of indices in `step`.
 5. `step` - Execute an action in the environment and return the next state, reward, done, and info.

@@ -145,6 +145,19 @@ module Reinforce
       space.is_a?(MultiDiscrete) ? space : nil
     end
 
+    # The environment's continuous action space (a Box), or nil when its
+    # actions are discrete or multi-discrete.
+    def self.box(environment)
+      return nil unless environment.respond_to?(:action_space)
+
+      space = begin
+        environment.action_space
+      rescue NotImplementedError
+        nil
+      end
+      space.is_a?(Box) ? space : nil
+    end
+
     # The environment's current action mask as one flat Array of booleans
     # (dimensions concatenated for a multi-discrete space), or nil when it
     # doesn't mask actions.

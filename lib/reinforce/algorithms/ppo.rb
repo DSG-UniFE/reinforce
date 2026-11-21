@@ -3,6 +3,7 @@
 require_relative "../experience"
 require_relative "../categorical_distribution"
 require_relative "../multi_categorical_distribution"
+require_relative "../squashed_gaussian_distribution"
 require_relative "../spaces"
 require_relative "../networks"
 require_relative "../running_mean_std"
@@ -22,14 +23,20 @@ module Reinforce
       # usual ReLU) is the standard activation for PPO's actor/critic MLPs.
       DEFAULT_NETWORK_CONFIG = Reinforce::Networks::Config.new(activation: Torch::NN::Tanh)
 
-      attr_reader :policy_model, :value_model
+      attr_reader :policy_model, :value_model, :log_std
 
       # sizes: the choices per dimension of a multi-discrete action space
       # (num_actions is then their sum), nil for a discrete one.
+      # continuous: true for a continuous (Box) action space with
+      # num_actions components: the policy model then outputs the mean of
+      # a tanh-squashed diagonal Gaussian (SquashedGaussianDistribution),
+      # whose log standard deviation is a learnt, state-independent
+      # parameter starting at initial_log_std.
       def initialize(state_size, num_actions, policy_model = nil, value_model = nil,
-        network_config: DEFAULT_NETWORK_CONFIG, sizes: nil)
+        network_config: DEFAULT_NETWORK_CONFIG, sizes: nil, continuous: false, initial_log_std: 0.0)
         super()
         @sizes = sizes
+        @log_std = Torch::NN::Parameter.new(Torch.full([num_actions], initial_log_std.to_f)) if continuous
         if policy_model.nil? || value_model.nil?
           @policy_model = build_head(state_size, num_actions, network_config, output_std: 0.01)
           @value_model = build_head(state_size, 1, network_config, output_std: 1.0)
@@ -53,7 +60,9 @@ module Reinforce
       end
 
       # mask: booleans shaped like the policy's logits (see
-      # CategoricalDistribution), or nil.
+      # CategoricalDistribution), or nil; continuous actions aren't masked.
+      # For continuous actions, `action` and the returned action are
+      # pre-tanh values (see SquashedGaussianDistribution).
       def get_action_and_value(x, action = nil, mask: nil)
         logits = @policy_model.call(x)
         pd = distribution(logits, mask)
@@ -64,10 +73,13 @@ module Reinforce
         [action, logprob, entropy, value]
       end
 
-      # The action distribution for these logits: one categorical, or one
-      # per dimension of a multi-discrete space.
+      # The action distribution for these logits: one categorical, one per
+      # dimension of a multi-discrete space, or a squashed Gaussian whose
+      # mean they are.
       def distribution(logits, mask = nil)
-        if @sizes
+        if @log_std
+          SquashedGaussianDistribution.new(mean: logits, log_std: @log_std)
+        elsif @sizes
           MultiCategoricalDistribution.new(logits: logits, sizes: @sizes, mask: mask)
         else
           CategoricalDistribution.new(logits: logits, mask: mask)
@@ -122,6 +134,8 @@ module Reinforce
       # normalize_rewards: see the comment in #initialize.
       # network: the shape of the default policy and value networks (only
       #   used when `policy_model:`/`value_model:` aren't given).
+      # initial_log_std: for a continuous action space, the initial log
+      #   standard deviation of the policy's Gaussian (see #initialize).
       #
       # With an `intrinsic_reward:` (see #initialize):
       # intrinsic_value_head: learn a separate value estimate for the
@@ -141,13 +155,13 @@ module Reinforce
         :learning_rate, :clip_param, :ppo_epochs, :minibatch_size, :discount_factor, :gae_lambda,
         :entropy_coefficient, :max_grad_norm, :normalize_rewards, :network,
         :intrinsic_value_head, :extrinsic_advantage_coefficient, :intrinsic_advantage_coefficient,
-        :intrinsic_discount_factor, :intrinsic_advantage_decay
+        :intrinsic_discount_factor, :intrinsic_advantage_decay, :initial_log_std
       ) do
         def initialize(learning_rate: 2.5e-4, clip_param: 0.2, ppo_epochs: 10, minibatch_size: 32, discount_factor: 0.99,
           gae_lambda: 0.97, entropy_coefficient: 0.01, max_grad_norm: 0.2, normalize_rewards: true,
           network: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG,
           intrinsic_value_head: true, extrinsic_advantage_coefficient: 2.0, intrinsic_advantage_coefficient: 1.0,
-          intrinsic_discount_factor: 0.99, intrinsic_advantage_decay: false)
+          intrinsic_discount_factor: 0.99, intrinsic_advantage_decay: false, initial_log_std: 0.0)
           super
         end
       end
@@ -181,12 +195,21 @@ module Reinforce
         @max_grad_norm = @config.max_grad_norm
         # Multi-discrete action spaces get one categorical per dimension;
         # action masks (Reinforce::Environment#action_mask) are honored
-        # whenever the environment provides one.
+        # whenever the environment provides one. A continuous (Box) space
+        # gets a tanh-squashed Gaussian policy (SquashedGaussianDistribution)
+        # with a learnt, state-independent standard deviation: the rollout
+        # keeps the pre-tanh samples u, and the environment receives
+        # tanh(u) scaled onto the box. Continuous actions aren't masked.
+        @box = Reinforce::Spaces.box(environment)
         @space = Reinforce::Spaces.multi_discrete(environment)
-        @num_logits = @space ? @space.total : environment.actions.size
+        @num_logits = if @box
+          @box.size
+        else
+          @space ? @space.total : environment.actions.size
+        end
         @agent = ActorCriticNetwork.new(
           environment.state_size, @num_logits, policy_model, value_model, network_config: @config.network,
-          sizes: @space&.sizes
+          sizes: @space&.sizes, continuous: !@box.nil?, initial_log_std: @config.initial_log_std
         )
         @gaelam = @config.gae_lambda
         @clip_param = @config.clip_param
@@ -222,9 +245,11 @@ module Reinforce
       # @parameter mask [Array, nil] the actions allowed in `state` (see
       #   Reinforce::Environment#action_mask); by default, the environment's
       #   current mask.
-      # @returns an element of the environment's #actions, or for a
-      #   multi-discrete space an Array of indices.
-      def predict(state, deterministic: true, mask: Reinforce::Spaces.flat_action_mask(@environment))
+      # @returns an element of the environment's #actions, for a
+      #   multi-discrete space an Array of indices, or for a continuous one
+      #   an element of the Box (tanh of the Gaussian's mean if
+      #   deterministic, of a sample otherwise).
+      def predict(state, deterministic: true, mask: action_mask)
         # A ternary, not `argument = ... unless state.is_a?(Torch::Tensor)`:
         # that modifier form assigns nil whenever the condition holds, so a
         # state that was already a Tensor reached the policy as nil.
@@ -232,6 +257,8 @@ module Reinforce
         logits = Torch.no_grad { @agent.policy_model.call(argument) }
         mask = mask.flatten if mask&.first.is_a?(Array)
         choice = @agent.distribution(logits, mask).choose(deterministic: deterministic)
+        return environment_action(Torch.tensor(choice, dtype: :float32)) if @box
+
         @space ? choice : @environment.actions[choice]
       end
 
@@ -310,7 +337,7 @@ module Reinforce
       def build_rollout_buffers(num_steps)
         {
           obs: Torch.zeros(num_steps, @environment.state_size),
-          actions: @space ? Torch.zeros(num_steps, @space.size) : Torch.zeros(num_steps),
+          actions: action_buffer(num_steps),
           masks: Torch.ones(num_steps, @num_logits, dtype: :bool),
           logprobs: Torch.zeros(num_steps, dtype: :float32),
           rewards: Torch.zeros(num_steps),
@@ -332,7 +359,38 @@ module Reinforce
       def trainable_parameters
         models = [@agent.policy_model, @agent.value_model]
         models << @intrinsic_value_model if @intrinsic_value_model
-        models.flat_map(&:parameters)
+        parameters = models.flat_map(&:parameters)
+        parameters << @agent.log_std if @agent.log_std
+        parameters
+      end
+
+      # The current action mask (nil for continuous actions, which aren't
+      # masked).
+      def action_mask
+        @box ? nil : Reinforce::Spaces.flat_action_mask(@environment)
+      end
+
+      # What the environment receives for an action the policy sampled: the
+      # element of #actions it indexes, the indices of a multi-discrete
+      # action, or tanh of the pre-tanh values scaled onto the Box.
+      def environment_action(action)
+        if @box
+          @box.scale(SquashedGaussianDistribution.squash(action).reshape(-1).to_a)
+        elsif @space
+          action.to_a.map(&:to_i)
+        else
+          action.to_i
+        end
+      end
+
+      def action_buffer(num_steps)
+        if @box
+          Torch.zeros(num_steps, @box.size)
+        elsif @space
+          Torch.zeros(num_steps, @space.size)
+        else
+          Torch.zeros(num_steps)
+        end
       end
 
       def compute_gae(rewards, values, dones, next_value, next_done, discount_factor: @discount_factor)
@@ -405,7 +463,7 @@ module Reinforce
             dones[step] = next_done ? 1.0 : 0.0
 
             action, prob, value = nil
-            flat_mask = Reinforce::Spaces.flat_action_mask(@environment)
+            flat_mask = action_mask
             if flat_mask
               masked = true
               masks[step] = Torch.tensor(flat_mask, dtype: :bool)
@@ -422,7 +480,7 @@ module Reinforce
             actions[step] = action
             logprobs[step] = prob
 
-            next_obs, reward, next_done = @environment.step(@space ? action.to_a.map(&:to_i) : action.to_i)
+            next_obs, reward, next_done = @environment.step(environment_action(action))
             training_reward = reward
             if @intrinsic_reward
               @intrinsic_reward.observe(next_obs)
@@ -478,7 +536,7 @@ module Reinforce
 
           b_obs = obs.reshape(-1, @environment.state_size)
           b_logprobs = logprobs.reshape(-1)
-          b_actions = @space ? actions.reshape(-1, @space.size) : actions.reshape(-1)
+          b_actions = (@box || @space) ? actions.reshape(-1, (@box || @space).size) : actions.reshape(-1)
           b_returns = returns.reshape(-1)
           b_advantages = advantages.reshape(-1)
           b_values = values.reshape(-1)

@@ -114,6 +114,36 @@ module Reinforce
       end
     end
 
+    # Proximal Policy Optimization (Schulman et al., 2017), for discrete,
+    # multi-discrete (Reinforce::Spaces::MultiDiscrete) and continuous
+    # (Reinforce::Spaces::Box) actions.
+    #
+    # With continuous actions, a shield (see Reinforce::Shields) can correct
+    # each action before it is executed and add a safety loss to the
+    # policy's, with the contract of Reinforce::Algorithms::ContinuousSAC:
+    #
+    # - `shield.call(state, action)` receives the policy's action in
+    #   [-1, 1] (the *base* action) and returns the action to execute, also
+    #   in [-1, 1]. The rollout keeps the base action and its
+    #   log-probability, with the reward of the executed one: the shield is
+    #   part of the environment PPO learns in, so the value of proposing an
+    #   action is its value under the shield. #predict is shielded too.
+    # - `shield.safety_loss(states, actions)` returns a differentiable scalar
+    #   loss for a batch of states and the policy's deterministic actions
+    #   (tanh of the mean), added to each minibatch's loss with weight
+    #   `safety_weight`.
+    # - `shield.last_info` (optional) returns a Hash of numbers about the
+    #   last #call, summed over each episode and recorded as
+    #   `shield_<key>`.
+    #
+    # Discrete actions are shielded by wrapping the environment instead
+    # (Reinforce::Shields::DiscreteShield).
+    #
+    # Environments can also report numbers per step in `info[:metrics]`,
+    # summed over each episode and recorded as `episode_<key>`. An episode
+    # that ends with `info[:truncated]` (a time limit) is not terminal: its
+    # last reward gets the discounted value of the state it reached, so
+    # returns keep bootstrapping across time limits.
     class PPO
       include ::Reinforce::Agent
 
@@ -136,6 +166,8 @@ module Reinforce
       #   used when `policy_model:`/`value_model:` aren't given).
       # initial_log_std: for a continuous action space, the initial log
       #   standard deviation of the policy's Gaussian (see #initialize).
+      # safety_weight: the weight of the shield's safety loss; unused
+      #   without a shield.
       #
       # With an `intrinsic_reward:` (see #initialize):
       # intrinsic_value_head: learn a separate value estimate for the
@@ -155,18 +187,19 @@ module Reinforce
         :learning_rate, :clip_param, :ppo_epochs, :minibatch_size, :discount_factor, :gae_lambda,
         :entropy_coefficient, :max_grad_norm, :normalize_rewards, :network,
         :intrinsic_value_head, :extrinsic_advantage_coefficient, :intrinsic_advantage_coefficient,
-        :intrinsic_discount_factor, :intrinsic_advantage_decay, :initial_log_std
+        :intrinsic_discount_factor, :intrinsic_advantage_decay, :initial_log_std, :safety_weight
       ) do
         def initialize(learning_rate: 2.5e-4, clip_param: 0.2, ppo_epochs: 10, minibatch_size: 32, discount_factor: 0.99,
           gae_lambda: 0.97, entropy_coefficient: 0.01, max_grad_norm: 0.2, normalize_rewards: true,
           network: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG,
           intrinsic_value_head: true, extrinsic_advantage_coefficient: 2.0, intrinsic_advantage_coefficient: 1.0,
-          intrinsic_discount_factor: 0.99, intrinsic_advantage_decay: false, initial_log_std: 0.0)
+          intrinsic_discount_factor: 0.99, intrinsic_advantage_decay: false, initial_log_std: 0.0,
+          safety_weight: 0.1)
           super
         end
       end
 
-      attr_reader :metrics, :config
+      attr_reader :metrics, :config, :shield
 
       alias_method :logs, :metrics
       attr_accessor :agent, :optimizer
@@ -174,10 +207,14 @@ module Reinforce
       # @parameter intrinsic_reward [#observe, #call, #train, nil] an
       #   exploration bonus added to each reward as rollouts are collected
       #   (see Reinforce::IntrinsicRewards).
-      def initialize(environment, config = nil, policy_model: nil, value_model: nil, intrinsic_reward: nil, **hyperparameters)
+      # @parameter shield [#call, #safety_loss, nil] for continuous actions;
+      #   see the class comment.
+      def initialize(environment, config = nil, policy_model: nil, value_model: nil, intrinsic_reward: nil, shield: nil,
+        **hyperparameters)
         @config = Reinforce::Hyperparameters.resolve(Config, config, hyperparameters)
         @environment = environment
         @intrinsic_reward = intrinsic_reward
+        @shield = shield
         # Reward normalization (Gymnasium's NormalizeReward): divide each
         # reward by a running estimate of the standard deviation of the
         # discounted return, so the critic's targets stay near unit scale
@@ -201,6 +238,9 @@ module Reinforce
         # keeps the pre-tanh samples u, and the environment receives
         # tanh(u) scaled onto the box. Continuous actions aren't masked.
         @box = Reinforce::Spaces.box(environment)
+        if @shield && !@box
+          raise ArgumentError, "a shield: needs continuous actions; wrap the environment in Reinforce::Shields::DiscreteShield instead"
+        end
         @space = Reinforce::Spaces.multi_discrete(environment)
         @num_logits = if @box
           @box.size
@@ -257,7 +297,10 @@ module Reinforce
         logits = Torch.no_grad { @agent.policy_model.call(argument) }
         mask = mask.flatten if mask&.first.is_a?(Array)
         choice = @agent.distribution(logits, mask).choose(deterministic: deterministic)
-        return environment_action(Torch.tensor(choice, dtype: :float32)) if @box
+        if @box
+          base = SquashedGaussianDistribution.squash(Torch.tensor(choice, dtype: :float32)).to_a
+          return @box.scale(@shield ? @shield.call(observation_array(state), base) : base)
+        end
 
         @space ? choice : @environment.actions[choice]
       end
@@ -383,6 +426,22 @@ module Reinforce
         end
       end
 
+      # A continuous action for the environment: the base action (tanh of
+      # the pre-tanh values) corrected by the shield, if any, and scaled
+      # onto the Box. The shield's last_info is added to `totals`.
+      def continuous_action(observation, pre_tanh, totals)
+        action = SquashedGaussianDistribution.squash(pre_tanh).reshape(-1).to_a
+        if @shield
+          action = @shield.call(observation, action)
+          @shield.last_info.each { |key, value| totals[:"shield_#{key}"] += value } if @shield.respond_to?(:last_info)
+        end
+        @box.scale(action)
+      end
+
+      def observation_array(state)
+        state.is_a?(Torch::Tensor) ? state.reshape(-1).to_a : Array(state).flatten.map(&:to_f)
+      end
+
       def action_buffer(num_steps)
         if @box
           Torch.zeros(num_steps, @box.size)
@@ -443,6 +502,7 @@ module Reinforce
         episode_lenth = 0
         episode_reward = 0
         episode_bonus = 0.0
+        totals = Hash.new(0.0) # per-episode sums of shield and environment metrics
         # Loop over the episodes
 
         1.upto(episodes) do |episode_number|
@@ -480,7 +540,10 @@ module Reinforce
             actions[step] = action
             logprobs[step] = prob
 
-            next_obs, reward, next_done = @environment.step(environment_action(action))
+            input = @box ? continuous_action(next_obs.to_a, action, totals) : environment_action(action)
+            next_obs, reward, next_done, info = @environment.step(input)
+            info = {} unless info.is_a?(Hash)
+            info.fetch(:metrics, {}).each { |key, value| totals[:"episode_#{key}"] += value }
             training_reward = reward
             if @intrinsic_reward
               @intrinsic_reward.observe(next_obs)
@@ -494,11 +557,17 @@ module Reinforce
               end
             end
             rewards[step] = @normalize_rewards ? normalize_reward(training_reward) : training_reward
+            # A time limit isn't a terminal state: bootstrap from the state reached.
+            if next_done && info[:truncated]
+              rewards[step] += @discount_factor * Torch.no_grad { @agent.get_value(observation_tensor(next_obs)).reshape(-1)[0].item }
+            end
             episode_reward += reward
             if next_done == true || step == num_steps - 1
               @metrics.record(:episode_reward, episode_reward)
               @metrics.record(:episode_length, episode_lenth)
               @metrics.record(:intrinsic_reward, episode_bonus) if @intrinsic_reward
+              totals.each { |key, value| @metrics.record(key, value) }
+              totals.clear
               episode_reward = 0
               episode_bonus = 0.0
               episode_lenth = 0
@@ -594,6 +663,12 @@ module Reinforce
 
               # warn "entropy_loss: #{entropy_loss}"
               loss = pg_loss - @entropy_coefficient * entropy_loss + value_loss * 0.5
+              if @shield
+                mb_obs = b_obs[Torch.tensor(mb_inds)]
+                safety_loss = @shield.safety_loss(mb_obs, SquashedGaussianDistribution.squash(@agent.policy_model.call(mb_obs)))
+                loss += safety_loss * @config.safety_weight
+                @metrics.record(:safety_loss, safety_loss.item)
+              end
               @metrics.record(:loss, loss.item)
 
               # Here another type of loss without entropy

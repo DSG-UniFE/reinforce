@@ -92,4 +92,118 @@ describe Reinforce::Algorithms::PPO do
       end
     end
   end
+
+  with "a shield" do
+    # Executes a fixed action, records what it was given, and has a
+    # differentiable safety loss pulling the policy's action toward -1.
+    let(:shield) do
+      Class.new do
+        attr_reader :calls, :loss_calls, :last_info
+
+        def initialize
+          @calls = []
+          @loss_calls = 0
+        end
+
+        def call(state, action)
+          @calls << [state, action]
+          @last_info = {interventions: 1, safety: 0.5}
+          [0.5]
+        end
+
+        def safety_loss(states, actions)
+          @loss_calls += 1
+          raise "actions must be in [-1, 1]" unless actions.abs.max.item <= 1.0
+
+          ((actions + 1.0)**2).mean
+        end
+      end.new
+    end
+
+    it "executes the shielded action and records the shield's metrics per episode" do
+      TorchTestHelpers.with_torch_seed do
+        environment = ContinuousTarget.new(low: 0.0, high: 10.0)
+        agent = subject.new(environment, shield: shield, initial_log_std: 1.0, ppo_epochs: 2, minibatch_size: 8)
+        agent.train(episodes: 3, steps_per_episode: 8)
+
+        # the environment receives the shield's action, scaled onto the box
+        expect(environment.actions_taken.uniq).to be == [[7.5]]
+        # the shield receives observations and base actions in [-1, 1]
+        expect(shield.calls.size).to be == 24
+        expect(shield.calls.all? { |state, action| state.size == 1 && action.size == 1 && action[0].abs <= 1.0 }).to be == true
+        expect(shield.calls.map { |_, action| action[0] }.uniq.size).to be > 1
+        # one-step episodes: one intervention per episode
+        expect(agent.metrics[:shield_interventions]).to be == Array.new(24, 1.0)
+        expect(agent.metrics[:safety_loss].size).to be == 3 * 2
+        expect(shield.loss_calls).to be == 6
+        expect(agent.predict([0.3])).to be == [7.5]
+      end
+    end
+
+    it "minimizes the safety loss with the policy's loss" do
+      TorchTestHelpers.with_torch_seed do
+        environment = ContinuousTarget.new
+        # rewards don't depend on the base action (the shield fixes it), so
+        # only the safety loss moves the policy's mean
+        agent = subject.new(environment, shield: shield, safety_weight: 1.0, learning_rate: 1e-2, ppo_epochs: 4, minibatch_size: 16)
+        before = Torch.no_grad { Torch.tanh(agent.agent.policy_model.call(Torch.tensor([[0.0]]))).item }
+        agent.train(episodes: 40, steps_per_episode: 16)
+        after = Torch.no_grad { Torch.tanh(agent.agent.policy_model.call(Torch.tensor([[0.0]]))).item }
+
+        expect(after).to be < before - 0.5
+      end
+    end
+
+    it "is only for continuous actions" do
+      discrete = Class.new do
+        include Reinforce::Environment
+
+        def state_size = 1
+
+        def actions = [0, 1]
+      end.new
+
+      expect { subject.new(discrete, shield: shield) }.to raise_exception(ArgumentError, message: be =~ /DiscreteShield/)
+    end
+  end
+
+  with "episodes that end at a time limit" do
+    # The reward is always 1 and every step ends the episode, at a time
+    # limit (truncated) or not: the value of a state is then 1 / (1 - γ)
+    # with bootstrapping, and 1 without.
+    def environment(truncated)
+      Class.new do
+        include Reinforce::Environment
+
+        define_method(:truncated) { truncated }
+
+        def state_size = 1
+
+        def action_space = Reinforce::Spaces::Box.new(low: -1.0, high: 1.0, size: 1)
+
+        def reset = [0.0]
+
+        def step(_action) = [[0.0], 1.0, true, {truncated: truncated, metrics: {requests: 2}}]
+      end.new
+    end
+
+    def value_after_training(truncated)
+      TorchTestHelpers.with_torch_seed do
+        agent = subject.new(environment(truncated), normalize_rewards: false, discount_factor: 0.5, learning_rate: 1e-2,
+          ppo_epochs: 4, minibatch_size: 16)
+        agent.train(episodes: 60, steps_per_episode: 16)
+        [Torch.no_grad { agent.agent.get_value(Torch.tensor([[0.0]])).item }, agent]
+      end
+    end
+
+    it "bootstraps from the state reached instead of treating it as terminal" do
+      terminal, = value_after_training(false)
+      bootstrapped, agent = value_after_training(true)
+
+      expect(terminal).to be_within(0.1).of(1.0)
+      expect(bootstrapped).to be_within(0.2).of(2.0)
+      # the environment's metrics are summed per episode
+      expect(agent.metrics[:episode_requests].uniq).to be == [2.0]
+    end
+  end
 end

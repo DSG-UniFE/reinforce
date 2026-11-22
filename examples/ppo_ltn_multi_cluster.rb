@@ -36,7 +36,14 @@
 #   time per step;
 # - testing: the accumulated reward per episode, the percentages served,
 #   rejected and in overflow, the mean latency and cost per served replica,
-#   the shield's interventions per step and the time per decision.
+#   the shield's interventions per step, the time per decision, and the
+#   calibration of the fit sensors on the deployments the agent made (the
+#   expected calibration error and the Brier score; see
+#   docs/sensor-model.md).
+#
+# Presets: easy and hard (the legacy telemetry, delayed by 0..1 decisions),
+# diurnal, and monitored (scripted workload with background tenants and
+# realistic telemetry; --no-ledger drops the agent's ledger).
 #
 # With --json, one JSON object per agent and seed is appended to the file,
 # so runs in separate processes can be aggregated.
@@ -47,9 +54,10 @@ require "reinforce/shields"
 AGENTS = %w[ppo ppo-ltn ppo-ltn-det sac sac-ltn greedy oracle random].freeze
 
 options = {preset: "hard", clusters: 4, budget: 100_000, horizon: 1_000, rollout: 2_000, test_episodes: 10, seeds: [1],
-           agents: %w[ppo ppo-ltn ppo-ltn-det sac sac-ltn greedy random], safety_samples: 8, threshold: 0.6, json: nil}
+           agents: %w[ppo ppo-ltn ppo-ltn-det sac sac-ltn greedy random], safety_samples: 8, threshold: 0.6, json: nil, ledger: true}
 OptionParser.new do |parser|
-  parser.on("--preset NAME", %w[easy hard diurnal]) { |value| options[:preset] = value }
+  parser.on("--preset NAME", %w[easy hard diurnal monitored]) { |value| options[:preset] = value }
+  parser.on("--no-ledger", "monitored: without the agent's ledger") { options[:ledger] = false }
   parser.on("--clusters N", Integer) { |value| options[:clusters] = value }
   parser.on("--budget STEPS", Integer, "training steps per learned agent") { |value| options[:budget] = value }
   parser.on("--horizon STEPS", Integer, "steps per episode") { |value| options[:horizon] = value }
@@ -65,7 +73,9 @@ unknown = options[:agents] - AGENTS
 abort "unknown agents: #{unknown.join(", ")}" if unknown.any?
 
 def build_environment(options)
-  Reinforce::Environments::MultiCluster.public_send(options[:preset], clusters: options[:clusters], horizon: options[:horizon])
+  extra = {}
+  extra[:telemetry] = Reinforce::Environments::MultiCluster::Telemetry.new(ledger: false) if options[:preset] == "monitored" && !options[:ledger]
+  Reinforce::Environments::MultiCluster.public_send(options[:preset], clusters: options[:clusters], horizon: options[:horizon], **extra)
 end
 
 def build_shield(environment, options)
@@ -130,6 +140,8 @@ end
 # @returns [Hash] test metrics over `episodes` episodes of `environment`.
 def test(agent, environment, episodes)
   shield = agent.respond_to?(:shield) ? agent.shield : nil
+  sensors = Reinforce::Shields::MultiClusterSafety.new(environment)
+  calibration = Reinforce::Shields::Calibration.new
   totals = Hash.new(0.0)
   rewards = []
   steps = 0
@@ -144,7 +156,10 @@ def test(agent, environment, episodes)
       action = agent.predict(state)
       seconds += clock - started
       interventions += shield.last_info.fetch(:interventions, 0) if shield
+      replicas = environment.request[:replicas]
+      observation = state
       state, step_reward, done, info = environment.step(action)
+      calibrate(calibration, sensors, observation, replicas, info[:deployments], environment.clusters)
       info[:metrics].each { |key, value| totals[key] += value }
       reward += step_reward
       steps += 1
@@ -154,7 +169,22 @@ def test(agent, environment, episodes)
   served = totals[:served]
   {reward: rewards.sum / rewards.size, served: percent(served, totals[:requested]), rejected: percent(totals[:rejected], totals[:requested]),
    overflow: percent(totals[:overflow], totals[:requested]), latency: served.positive? ? totals[:latency] / served : 0.0,
-   cost: served.positive? ? totals[:cost] / served : 0.0, interventions: interventions.fdiv(steps), ms_per_step: 1000 * seconds / steps}
+   cost: served.positive? ? totals[:cost] / served : 0.0, interventions: interventions.fdiv(steps), ms_per_step: 1000 * seconds / steps,
+   ece: calibration.expected_calibration_error, brier: calibration.brier}
+end
+
+# Adds the sensors' fit probabilities for the replicas actually sent to
+# each cluster, against whether they fitted.
+def calibrate(calibration, sensors, observation, replicas, deployments, clusters)
+  return if deployments.empty?
+
+  shares = Array.new(clusters + 1, 0.0)
+  deployments.each { |deployment| shares[deployment[:cluster]] = deployment[:replicas].to_f / replicas }
+  shares[clusters] = 1.0 - shares.sum
+  probabilities = Torch.no_grad do
+    sensors.fit_probabilities(Torch.tensor([observation], dtype: :float32), Torch.tensor([shares], dtype: :float32))[0].to_a
+  end
+  deployments.each { |deployment| calibration.add(probabilities[deployment[:cluster]], deployment[:fitted]) }
 end
 
 puts format("%s, %d clusters, %d training steps per learned agent, %d test episodes of %d steps", options[:preset], options[:clusters],
@@ -177,11 +207,12 @@ options[:seeds].each do |seed|
     agent = build_agent(name, test_environment, options) unless agent.respond_to?(:train)
     results = test(agent, test_environment, options[:test_episodes])
     puts format("%-12s seed %d  test:  reward %7.1f  served %5.1f%%  rejected %5.1f%%  overflow %5.1f%%  latency %.3f  cost %.3f  " \
-      "interventions %.2f/step  %.2f ms/decision", name, seed,
-      *results.values_at(:reward, :served, :rejected, :overflow, :latency, :cost, :interventions, :ms_per_step))
+      "interventions %.2f/step  %.2f ms/decision  sensors ECE %.3f Brier %.3f", name, seed,
+      *results.values_at(:reward, :served, :rejected, :overflow, :latency, :cost, :interventions, :ms_per_step), results[:ece] || 0.0,
+      results[:brier] || 0.0)
     next unless options[:json]
 
-    record = {agent: name, seed: seed, preset: options[:preset], clusters: options[:clusters], budget: options[:budget],
+    record = {agent: name, seed: seed, preset: options[:preset], ledger: options[:ledger], clusters: options[:clusters], budget: options[:budget],
               safety_samples: options[:safety_samples], threshold: options[:threshold], train: training, test: results}
     File.open(options[:json], "a") { |file| file.puts(JSON.generate(record)) }
   end

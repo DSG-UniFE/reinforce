@@ -181,7 +181,9 @@ module Reinforce
       #   rollout's policy exceeds 1.5 * target_kl (as in Stable-Baselines3);
       #   nil never stops. It keeps updates near PPO's trust region when
       #   another loss (e.g. the safety loss) moves the policy, which the
-      #   ratio clipping doesn't limit.
+      #   ratio clipping doesn't limit. Each rollout records the gradient
+      #   steps it took (`updates`) and whether it stopped early
+      #   (`early_stop`, 1 or 0).
       #
       # With an `intrinsic_reward:` (see #initialize):
       # intrinsic_value_head: learn a separate value estimate for the
@@ -643,6 +645,7 @@ module Reinforce
           clipfracs = []
 
           stopped = false
+          updates = 0
           1.upto(@ppo_epochs) do |epoch|
             break if stopped
 
@@ -721,8 +724,11 @@ module Reinforce
               clip_grad_norm_(trainable_parameters, @max_grad_norm)
 
               @optimizer.step
+              updates += 1
             end
           end
+          @metrics.record(:updates, updates)
+          @metrics.record(:early_stop, stopped ? 1 : 0)
         end
       end
     end

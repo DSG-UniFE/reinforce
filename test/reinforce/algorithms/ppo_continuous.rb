@@ -214,6 +214,25 @@ describe Reinforce::Algorithms::PPO do
       expect(updates(nil)).to be == 3 * 4 * 4
       expect(updates(1e-6)).to be < 3 * 4 * 4
     end
+
+    it "records the gradient steps of each rollout and whether it stopped early" do
+      metrics = lambda do |target_kl|
+        TorchTestHelpers.with_torch_seed do
+          agent = subject.new(ContinuousTarget.new, target_kl: target_kl, learning_rate: 5e-2, ppo_epochs: 4, minibatch_size: 8)
+          agent.train(episodes: 3, steps_per_episode: 32)
+          [agent.metrics[:updates], agent.metrics[:early_stop], agent.metrics[:approx_kl].size]
+        end
+      end
+
+      updates, stops, = metrics.call(nil)
+      expect(updates).to be == [16, 16, 16]
+      expect(stops).to be == [0, 0, 0]
+      updates, stops, measured = metrics.call(1e-6)
+      expect(updates.all? { |count| count < 16 }).to be == true
+      expect(stops).to be == [1, 1, 1]
+      # every minibatch measured is updated, except the one that stops each rollout
+      expect(updates.sum).to be == measured - 3
+    end
   end
 
   with "episodes that end at a time limit" do

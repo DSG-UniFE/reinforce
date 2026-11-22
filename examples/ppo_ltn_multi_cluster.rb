@@ -33,7 +33,8 @@
 # - training: the percentages of the requested replicas served, rejected
 #   and in overflow over the whole training (every overflow during training
 #   is a failed deployment), the shield's interventions per step, and the
-#   time per step;
+#   time per step; for PPO, also the gradient steps taken as a fraction of
+#   those planned, and the fraction of rollouts its target KL stopped early;
 # - testing: the accumulated reward per episode, the percentages served,
 #   rejected and in overflow, the mean latency and cost per served replica,
 #   the shield's interventions per step, the time per decision, and the
@@ -142,9 +143,15 @@ def train(agent, name, options)
   metrics = agent.metrics
   total = ->(key) { metrics[key]&.sum.to_f }
   requested = total.call(:episode_requested)
-  {served: percent(total.call(:episode_served), requested), rejected: percent(total.call(:episode_rejected), requested),
-   overflow: percent(total.call(:episode_overflow), requested), interventions: total.call(:shield_interventions) / (episodes * steps),
-   ms_per_step: 1000 * seconds / (episodes * steps)}
+  result = {served: percent(total.call(:episode_served), requested), rejected: percent(total.call(:episode_rejected), requested),
+            overflow: percent(total.call(:episode_overflow), requested), interventions: total.call(:shield_interventions) / (episodes * steps),
+            ms_per_step: 1000 * seconds / (episodes * steps)}
+  if metrics[:updates]&.any?
+    planned = agent.config.ppo_epochs * (steps.to_f / agent.config.minibatch_size).ceil
+    result[:updates] = total.call(:updates) / (planned * metrics[:updates].size)
+    result[:early_stops] = total.call(:early_stop) / metrics[:early_stop].size
+  end
+  result
 end
 
 # @returns [Hash] test metrics over `episodes` episodes of `environment`,
@@ -207,8 +214,10 @@ options[:seeds].each do |seed|
     agent = build_agent(name, build_environment(options), options)
     training = train(agent, name, options) if agent.respond_to?(:train)
     if training
-      puts format("%-12s seed %d  train: served %5.1f%%  rejected %5.1f%%  overflow %5.1f%%  interventions %.2f/step  %.2f ms/step",
+      line = format("%-12s seed %d  train: served %5.1f%%  rejected %5.1f%%  overflow %5.1f%%  interventions %.2f/step  %.2f ms/step",
         name, seed, *training.values_at(:served, :rejected, :overflow, :interventions, :ms_per_step))
+      line += format("  updates %.0f%% of planned, %.0f%% of rollouts stopped early", 100 * training[:updates], 100 * training[:early_stops]) if training[:updates]
+      puts line
     end
 
     # the same test episodes for every agent and seed

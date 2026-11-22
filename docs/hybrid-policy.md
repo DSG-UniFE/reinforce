@@ -99,14 +99,28 @@ action is the value of proposing it under the shield.
 
 Added to the actor's loss with weight λ_s (`safety_weight`, default 0.1):
 
-- **deterministic** (SAC-LTN, and PPO-LTN with `safety_samples: 0`):
+- **deterministic** (SAC-LTN, and PPO-LTN by default, `safety_samples: 0`):
   L_s = E_o[−log max(Sa(o, q_θ(o)), ε)], on the actor's deterministic
   action;
-- **Monte Carlo** (PPO-LTN with `safety_samples: M`, default 8):
+- **Monte Carlo** (PPO-LTN with `safety_samples: M`, an ablation):
   L_s = E_o[−log max((1/M) Σ_m Sa(o, q_θ^(m)(o)), ε)], over M
   reparameterized samples of the policy, tanh(μ + σ ξ_m). It estimates
   −log P(safe) of an action drawn from the policy, so its gradient reaches
   the spread σ as well as the mean.
+
+A sweep of λ_s on the monitored testbed (load 0.8, 4 clusters, 3 seeds,
+100k training steps) chose between them. Both forms trace the same
+overflow-rejection trade-off, from about 7% of the replicas in overflow and
+2% rejected to about 4% and 5%, but the Monte Carlo form is weaker and
+needs about ten times the weight. At comparable points, the deterministic
+form makes the shield intervene less (0.08 against 0.12 interventions per
+step) and leaves the policy safer without the shield (4.8% against 6.2% in
+overflow), probably because testing uses the deterministic action, which
+is what it optimizes. Its knee is at λ_s ≈ 0.3 (3.7% in overflow, 5.1%
+rejected); larger weights mostly add rejections. Without a safety loss
+(λ_s = 0), correction alone cuts overflow from 9.1% (plain PPO) to 7.6%,
+but the policy learns nothing from it: without the shield it overflows as
+much as plain PPO.
 
 The gradient flows through the sensors and the LTN into the actor; the
 run-time search is detached from it. In PPO, a target KL divergence

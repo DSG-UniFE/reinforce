@@ -7,16 +7,17 @@
 # NeSy-SAC evaluation:
 #
 #   bundle exec ruby examples/ppo_ltn_multi_cluster.rb --preset hard --clusters 4 --budget 100000
-#   bundle exec ruby examples/ppo_ltn_multi_cluster.rb --agents ppo-ltn,ppo-ltn-det --seeds 1,2,3 --json results.jsonl
+#   bundle exec ruby examples/ppo_ltn_multi_cluster.rb --agents ppo-ltn,ppo-ltn-mc --seeds 1,2,3 --json results.jsonl
 #
 # Agents:
 #
 # - ppo: PPO with a tanh-squashed Gaussian policy, no shield;
 # - ppo-ltn: PPO with Reinforce::Shields::AllocationShield over
 #   MultiClusterSafety, correcting actions in training and testing, and a
-#   safety loss over --safety-samples sampled actions per state;
-# - ppo-ltn-det: the same with the safety loss on the deterministic action
-#   (as in NeSy-SAC);
+#   safety loss on the policy's deterministic action (as in NeSy-SAC), with
+#   weight 0.3 (the knee of a sweep on the monitored testbed, load 0.8);
+# - ppo-ltn-mc: the same with the safety loss over --safety-samples sampled
+#   actions per state (the Monte Carlo form, an ablation);
 # - sac, sac-ltn: ContinuousSAC without and with the same shield;
 # - greedy (best fit on the delayed telemetry), oracle (best fit on the
 #   true free resources) and random.
@@ -53,10 +54,10 @@ require "json"
 require "optparse"
 require "reinforce/shields"
 
-AGENTS = %w[ppo ppo-ltn ppo-ltn-det sac sac-ltn greedy oracle random].freeze
+AGENTS = %w[ppo ppo-ltn ppo-ltn-mc sac sac-ltn greedy oracle random].freeze
 
 options = {preset: "hard", clusters: 4, budget: 100_000, horizon: 1_000, rollout: 2_000, test_episodes: 10, seeds: [1],
-           agents: %w[ppo ppo-ltn ppo-ltn-det sac sac-ltn greedy random], safety_samples: 8, threshold: 0.6, json: nil, ledger: true, load: nil, background_load: nil,
+           agents: %w[ppo ppo-ltn ppo-ltn-mc sac sac-ltn greedy random], safety_samples: 8, threshold: 0.6, json: nil, ledger: true, load: nil, background_load: nil,
            safety_weight: nil}
 OptionParser.new do |parser|
   parser.on("--preset NAME", %w[easy hard diurnal monitored]) { |value| options[:preset] = value }
@@ -70,9 +71,9 @@ OptionParser.new do |parser|
   parser.on("--test-episodes N", Integer) { |value| options[:test_episodes] = value }
   parser.on("--seeds LIST", Array) { |value| options[:seeds] = value.map(&:to_i) }
   parser.on("--agents LIST", Array, AGENTS.join(", ")) { |value| options[:agents] = value }
-  parser.on("--safety-samples M", Integer, "sampled actions per state in PPO-LTN's safety loss") { |value| options[:safety_samples] = value }
+  parser.on("--safety-samples M", Integer, "sampled actions per state in ppo-ltn-mc's safety loss (8)") { |value| options[:safety_samples] = value }
   parser.on("--threshold TAU", Float, "the shield's safety threshold") { |value| options[:threshold] = value }
-  parser.on("--safety-weight LAMBDA", Float, "the safety loss weight of shielded agents (0.1)") { |value| options[:safety_weight] = value }
+  parser.on("--safety-weight LAMBDA", Float, "the safety loss weight of shielded agents (PPO 0.3, SAC 0.1)") { |value| options[:safety_weight] = value }
   parser.on("--json PATH", "append the results to this JSON-lines file") { |value| options[:json] = value }
 end.parse!
 unknown = options[:agents] - AGENTS
@@ -96,7 +97,7 @@ end
 # Design note, Table C.
 PPO_HYPERPARAMETERS = {
   learning_rate: 3e-4, ppo_epochs: 10, minibatch_size: 256, discount_factor: 0.99, gae_lambda: 0.95, clip_param: 0.2,
-  entropy_coefficient: 0.0, max_grad_norm: 0.5, target_kl: 0.02, initial_log_std: 0.0, safety_weight: 0.1,
+  entropy_coefficient: 0.0, max_grad_norm: 0.5, target_kl: 0.02, initial_log_std: 0.0, safety_weight: 0.3,
   network: Reinforce::Networks::Config.new(hidden_size: 64, hidden_layers: 2, activation: Torch::NN::ReLU)
 }.freeze
 
@@ -113,9 +114,9 @@ def build_agent(name, environment, options)
   when "ppo"
     Reinforce::Algorithms::PPO.new(environment, **ppo)
   when "ppo-ltn"
-    Reinforce::Algorithms::PPO.new(environment, shield: build_shield(environment, options), safety_samples: options[:safety_samples], **ppo)
-  when "ppo-ltn-det"
     Reinforce::Algorithms::PPO.new(environment, shield: build_shield(environment, options), safety_samples: 0, **ppo)
+  when "ppo-ltn-mc"
+    Reinforce::Algorithms::PPO.new(environment, shield: build_shield(environment, options), safety_samples: options[:safety_samples], **ppo)
   when "sac"
     Reinforce::Algorithms::ContinuousSAC.new(environment, **sac)
   when "sac-ltn"
@@ -131,6 +132,12 @@ def build_agent(name, environment, options)
 end
 
 def clock = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+# The value of an agent's hyperparameter, if it has one (for the records).
+def effective(agent, name)
+  config = agent.respond_to?(:config) ? agent.config : nil
+  config.respond_to?(name) ? config.public_send(name) : nil
+end
 
 def percent(part, whole) = whole.positive? ? 100.0 * part / whole : 0.0
 
@@ -241,7 +248,7 @@ options[:seeds].each do |seed|
     next unless options[:json]
 
     record = {agent: name, seed: seed, preset: options[:preset], ledger: options[:ledger], load: options[:load], background_load: options[:background_load], clusters: options[:clusters], budget: options[:budget],
-              safety_samples: options[:safety_samples], threshold: options[:threshold], safety_weight: options[:safety_weight],
+              safety_samples: effective(agent, :safety_samples), threshold: options[:threshold], safety_weight: effective(agent, :safety_weight),
               train: training, test: results, test_unshielded: unshielded}
     File.open(options[:json], "a") { |file| file.puts(JSON.generate(record)) }
   end

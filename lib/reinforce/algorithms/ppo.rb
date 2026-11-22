@@ -130,14 +130,18 @@ module Reinforce
     #   action is its value under the shield. #predict is shielded too.
     # - `shield.safety_loss(states, actions)` returns a differentiable scalar
     #   loss for a batch of states and actions of the policy, added to each
-    #   minibatch's loss with weight `safety_weight`. With `safety_samples`
-    #   M > 0, the actions are M reparameterized samples per state, tanh(mean
-    #   + std * noise) shaped samples x batch x components, so the loss
-    #   reaches the standard deviation as well as the mean and scores the
-    #   actions the policy explores (Reinforce::Shields::AllocationShield
-    #   averages their scores before the log: -log P(safe) under the
-    #   policy). With 0, they are its deterministic actions, tanh of the
-    #   mean, batch x components.
+    #   minibatch's loss with weight `safety_weight`. By default
+    #   (`safety_samples` 0) the actions are the policy's deterministic ones,
+    #   tanh of the mean, batch x components. With `safety_samples` M > 0,
+    #   they are M reparameterized samples per state, tanh(mean + std *
+    #   noise) shaped samples x batch x components, so the loss reaches the
+    #   standard deviation as well as the mean and scores the actions the
+    #   policy explores (Reinforce::Shields::AllocationShield averages their
+    #   scores before the log: -log P(safe) under the policy). On the
+    #   multi-cluster benchmark both trace the same overflow-rejection
+    #   trade-off, the sampled form needing about ten times the weight, and
+    #   the deterministic one leaves the policy safer without the shield
+    #   (see docs/hybrid-policy.md).
     # - `shield.last_info` (optional) returns a Hash of numbers about the
     #   last #call, summed over each episode and recorded as
     #   `shield_<key>`.
@@ -175,7 +179,8 @@ module Reinforce
       # safety_weight: the weight of the shield's safety loss; unused
       #   without a shield.
       # safety_samples: the sampled actions per state the safety loss
-      #   scores; 0 scores the deterministic action (see the class comment).
+      #   scores; 0 (the default) scores the deterministic action (see the
+      #   class comment).
       # target_kl: stop a rollout's updates early, before the step that
       #   would follow a minibatch whose approximate KL divergence from the
       #   rollout's policy exceeds 1.5 * target_kl (as in Stable-Baselines3);
@@ -211,7 +216,7 @@ module Reinforce
           network: ActorCriticNetwork::DEFAULT_NETWORK_CONFIG,
           intrinsic_value_head: true, extrinsic_advantage_coefficient: 2.0, intrinsic_advantage_coefficient: 1.0,
           intrinsic_discount_factor: 0.99, intrinsic_advantage_decay: false, initial_log_std: 0.0,
-          safety_weight: 0.1, safety_samples: 8, target_kl: nil)
+          safety_weight: 0.1, safety_samples: 0, target_kl: nil)
           super
         end
       end

@@ -300,11 +300,13 @@ module Reinforce
       # @parameter mask [Array, nil] the actions allowed in `state` (see
       #   Reinforce::Environment#action_mask); by default, the environment's
       #   current mask.
+      # @parameter shielded [Boolean] with a shield, whether it corrects the
+      #   action (false shows what the policy proposes by itself).
       # @returns an element of the environment's #actions, for a
       #   multi-discrete space an Array of indices, or for a continuous one
       #   an element of the Box (tanh of the Gaussian's mean if
       #   deterministic, of a sample otherwise).
-      def predict(state, deterministic: true, mask: action_mask)
+      def predict(state, deterministic: true, mask: action_mask, shielded: true)
         # A ternary, not `argument = ... unless state.is_a?(Torch::Tensor)`:
         # that modifier form assigns nil whenever the condition holds, so a
         # state that was already a Tensor reached the policy as nil.
@@ -314,7 +316,7 @@ module Reinforce
         choice = @agent.distribution(logits, mask).choose(deterministic: deterministic)
         if @box
           base = SquashedGaussianDistribution.squash(Torch.tensor(choice, dtype: :float32)).to_a
-          return @box.scale(@shield ? @shield.call(observation_array(state), base) : base)
+          return @box.scale((@shield && shielded) ? @shield.call(observation_array(state), base) : base)
         end
 
         @space ? choice : @environment.actions[choice]

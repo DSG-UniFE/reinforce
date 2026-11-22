@@ -18,7 +18,13 @@ describe "ContinuousSAC with a multi-cluster shield" do
       expect(metrics[:shield_interventions].sum).to be >= metrics[:shield_corrections].sum
       expect(metrics[:shield_safety].first).to be > 0.0
       expect(metrics[:episode_requested].size).to be == 2
-      expect(environment.action_space.contains?(agent.predict(environment.reset))).to be == true
+      state = environment.reset
+      expect(environment.action_space.contains?(agent.predict(state))).to be == true
+      # without the shield: the policy's own action, and the shield isn't called
+      calls = metrics[:shield_safety].size
+      shield.define_singleton_method(:call) { |*| raise "the shield was called" }
+      expect(environment.action_space.contains?(agent.predict(state, shielded: false))).to be == true
+      expect(metrics[:shield_safety].size).to be == calls
     end
   end
 end

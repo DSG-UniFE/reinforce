@@ -119,10 +119,12 @@ module Reinforce
       # @parameter state [Array(Numeric)] a state of the environment.
       # @parameter deterministic [Boolean] tanh of the policy's mean if true,
       #   a sample otherwise.
+      # @parameter shielded [Boolean] with a shield, whether it corrects the
+      #   action (false shows what the policy proposes by itself).
       # @returns [Array(Float)] an element of the action space, shielded if
-      #   the agent has a shield.
-      def predict(state, deterministic: true)
-        @action_space.scale(choose_action(state, deterministic: deterministic))
+      #   the agent has a shield and `shielded`.
+      def predict(state, deterministic: true, shielded: true)
+        @action_space.scale(choose_action(state, deterministic: deterministic, shielded: shielded))
       end
 
       # Trains for `episodes` episodes of at most `steps_per_episode` steps,
@@ -265,9 +267,9 @@ module Reinforce
         Torch.tensor([flatten(state)], dtype: :float32)
       end
 
-      def choose_action(state, deterministic:)
+      def choose_action(state, deterministic:, shielded: true)
         action = deterministic ? deterministic_action(state) : sample_action(state)
-        shielded(state, action, nil)
+        shielded ? shielded(state, action, nil) : action
       end
 
       def deterministic_action(state)

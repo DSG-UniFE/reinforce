@@ -39,7 +39,8 @@
 #   the shield's interventions per step, the time per decision, and the
 #   calibration of the fit sensors on the deployments the agent made (the
 #   expected calibration error and the Brier score; see
-#   docs/sensor-model.md).
+#   docs/sensor-model.md); agents with a shield are also tested without
+#   it, on the same episodes, to show what their policy proposes by itself.
 #
 # Presets: easy and hard (the legacy telemetry, delayed by 0..1 decisions),
 # diurnal, and monitored (scripted workload with background tenants and
@@ -54,10 +55,13 @@ require "reinforce/shields"
 AGENTS = %w[ppo ppo-ltn ppo-ltn-det sac sac-ltn greedy oracle random].freeze
 
 options = {preset: "hard", clusters: 4, budget: 100_000, horizon: 1_000, rollout: 2_000, test_episodes: 10, seeds: [1],
-           agents: %w[ppo ppo-ltn ppo-ltn-det sac sac-ltn greedy random], safety_samples: 8, threshold: 0.6, json: nil, ledger: true}
+           agents: %w[ppo ppo-ltn ppo-ltn-det sac sac-ltn greedy random], safety_samples: 8, threshold: 0.6, json: nil, ledger: true, load: nil, background_load: nil,
+           safety_weight: nil}
 OptionParser.new do |parser|
   parser.on("--preset NAME", %w[easy hard diurnal monitored]) { |value| options[:preset] = value }
   parser.on("--no-ledger", "monitored: without the agent's ledger") { options[:ledger] = false }
+  parser.on("--load FRACTION", Float, "monitored: the capacity the agent's requests offer on average (0.5)") { |value| options[:load] = value }
+  parser.on("--background-load FRACTION", Float, "monitored: the capacity background tenants occupy (0.35)") { |value| options[:background_load] = value }
   parser.on("--clusters N", Integer) { |value| options[:clusters] = value }
   parser.on("--budget STEPS", Integer, "training steps per learned agent") { |value| options[:budget] = value }
   parser.on("--horizon STEPS", Integer, "steps per episode") { |value| options[:horizon] = value }
@@ -67,6 +71,7 @@ OptionParser.new do |parser|
   parser.on("--agents LIST", Array, AGENTS.join(", ")) { |value| options[:agents] = value }
   parser.on("--safety-samples M", Integer, "sampled actions per state in PPO-LTN's safety loss") { |value| options[:safety_samples] = value }
   parser.on("--threshold TAU", Float, "the shield's safety threshold") { |value| options[:threshold] = value }
+  parser.on("--safety-weight LAMBDA", Float, "the safety loss weight of shielded agents (0.1)") { |value| options[:safety_weight] = value }
   parser.on("--json PATH", "append the results to this JSON-lines file") { |value| options[:json] = value }
 end.parse!
 unknown = options[:agents] - AGENTS
@@ -74,7 +79,11 @@ abort "unknown agents: #{unknown.join(", ")}" if unknown.any?
 
 def build_environment(options)
   extra = {}
-  extra[:telemetry] = Reinforce::Environments::MultiCluster::Telemetry.new(ledger: false) if options[:preset] == "monitored" && !options[:ledger]
+  if options[:preset] == "monitored"
+    extra[:telemetry] = Reinforce::Environments::MultiCluster::Telemetry.new(ledger: false) unless options[:ledger]
+    extra[:load] = options[:load] if options[:load]
+    extra[:background_load] = options[:background_load] if options[:background_load]
+  end
   Reinforce::Environments::MultiCluster.public_send(options[:preset], clusters: options[:clusters], horizon: options[:horizon], **extra)
 end
 
@@ -97,18 +106,19 @@ SAC_HYPERPARAMETERS = {
 }.freeze
 
 def build_agent(name, environment, options)
+  ppo = PPO_HYPERPARAMETERS.merge(options[:safety_weight] ? {safety_weight: options[:safety_weight]} : {})
+  sac = SAC_HYPERPARAMETERS.merge(options[:safety_weight] ? {safety_weight: options[:safety_weight]} : {})
   case name
   when "ppo"
-    Reinforce::Algorithms::PPO.new(environment, **PPO_HYPERPARAMETERS)
+    Reinforce::Algorithms::PPO.new(environment, **ppo)
   when "ppo-ltn"
-    Reinforce::Algorithms::PPO.new(environment, shield: build_shield(environment, options), safety_samples: options[:safety_samples],
-      **PPO_HYPERPARAMETERS)
+    Reinforce::Algorithms::PPO.new(environment, shield: build_shield(environment, options), safety_samples: options[:safety_samples], **ppo)
   when "ppo-ltn-det"
-    Reinforce::Algorithms::PPO.new(environment, shield: build_shield(environment, options), safety_samples: 0, **PPO_HYPERPARAMETERS)
+    Reinforce::Algorithms::PPO.new(environment, shield: build_shield(environment, options), safety_samples: 0, **ppo)
   when "sac"
-    Reinforce::Algorithms::ContinuousSAC.new(environment, **SAC_HYPERPARAMETERS)
+    Reinforce::Algorithms::ContinuousSAC.new(environment, **sac)
   when "sac-ltn"
-    Reinforce::Algorithms::ContinuousSAC.new(environment, shield: build_shield(environment, options), **SAC_HYPERPARAMETERS)
+    Reinforce::Algorithms::ContinuousSAC.new(environment, shield: build_shield(environment, options), **sac)
   when "greedy"
     Reinforce::Environments::MultiCluster::GreedyPolicy.new(environment)
   when "oracle"
@@ -137,8 +147,9 @@ def train(agent, name, options)
    ms_per_step: 1000 * seconds / (episodes * steps)}
 end
 
-# @returns [Hash] test metrics over `episodes` episodes of `environment`.
-def test(agent, environment, episodes)
+# @returns [Hash] test metrics over `episodes` episodes of `environment`,
+#   with the agent's shield (if any) correcting its actions or not.
+def test(agent, environment, episodes, shielded: true)
   shield = agent.respond_to?(:shield) ? agent.shield : nil
   sensors = Reinforce::Shields::MultiClusterSafety.new(environment)
   calibration = Reinforce::Shields::Calibration.new
@@ -153,9 +164,9 @@ def test(agent, environment, episodes)
     done = false
     until done
       started = clock
-      action = agent.predict(state)
+      action = shield ? agent.predict(state, shielded: shielded) : agent.predict(state)
       seconds += clock - started
-      interventions += shield.last_info.fetch(:interventions, 0) if shield
+      interventions += shield.last_info.fetch(:interventions, 0) if shield && shielded
       replicas = environment.request[:replicas]
       observation = state
       state, step_reward, done, info = environment.step(action)
@@ -206,14 +217,23 @@ options[:seeds].each do |seed|
     # policies without training act on the test environment (the oracle reads its true state)
     agent = build_agent(name, test_environment, options) unless agent.respond_to?(:train)
     results = test(agent, test_environment, options[:test_episodes])
+    if agent.respond_to?(:shield) && agent.shield
+      srand(10_000)
+      unshielded = test(agent, build_environment(options), options[:test_episodes], shielded: false)
+    end
     puts format("%-12s seed %d  test:  reward %7.1f  served %5.1f%%  rejected %5.1f%%  overflow %5.1f%%  latency %.3f  cost %.3f  " \
       "interventions %.2f/step  %.2f ms/decision  sensors ECE %.3f Brier %.3f", name, seed,
       *results.values_at(:reward, :served, :rejected, :overflow, :latency, :cost, :interventions, :ms_per_step), results[:ece] || 0.0,
       results[:brier] || 0.0)
+    if unshielded
+      puts format("%-12s seed %d  test without the shield:  reward %7.1f  served %5.1f%%  rejected %5.1f%%  overflow %5.1f%%", name, seed,
+        *unshielded.values_at(:reward, :served, :rejected, :overflow))
+    end
     next unless options[:json]
 
-    record = {agent: name, seed: seed, preset: options[:preset], ledger: options[:ledger], clusters: options[:clusters], budget: options[:budget],
-              safety_samples: options[:safety_samples], threshold: options[:threshold], train: training, test: results}
+    record = {agent: name, seed: seed, preset: options[:preset], ledger: options[:ledger], load: options[:load], background_load: options[:background_load], clusters: options[:clusters], budget: options[:budget],
+              safety_samples: options[:safety_samples], threshold: options[:threshold], safety_weight: options[:safety_weight],
+              train: training, test: results, test_unshielded: unshielded}
     File.open(options[:json], "a") { |file| file.puts(JSON.generate(record)) }
   end
 end

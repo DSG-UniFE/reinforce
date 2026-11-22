@@ -139,6 +139,10 @@ describe Reinforce::Algorithms::PPO do
         expect(agent.metrics[:safety_loss].size).to be == 3 * 2
         expect(shield.loss_calls).to be == 6
         expect(agent.predict([0.3])).to be == [7.5]
+        # without the shield, the policy's own action
+        unshielded = agent.predict([0.3], shielded: false)
+        expect(unshielded).not.to be == [7.5]
+        expect(unshielded[0].between?(0.0, 10.0)).to be == true
       end
     end
 

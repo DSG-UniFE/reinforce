@@ -76,6 +76,21 @@ describe Reinforce::Environments::MultiCluster::Telemetry do
     expect(known.volatility[0]).to be_within(0.05).of(0.2)
     expect(known.drift[1]).to be == 0.0
   end
+  it "estimates how often other tenants change each resource" do
+    telemetry = subject.new(interval: 10.0, jitter: 0.0, latency_median: 0.0, latency_sigma: 0.0, smoothing: 0.02)
+    random = Random.new(8)
+    free = [[25.0, 50.0, 1.0, 500.0]]
+    pipeline = monitor(telemetry, free: free)
+    # CPU changes 0.02 times per second (a Poisson process), up or down; nothing else
+    (1..40_000).each do |second|
+      pipeline.advance(second.to_f, free)
+      free[0][0] += (random.rand < 0.5) ? 1.0 : -1.0 if random.rand < 0.02
+    end
+    rates = pipeline.knowledge(40_000.0).first.event_rate
+
+    expect(rates[0]).to be_within(0.005).of(0.02)
+    expect(rates[1]).to be_within(1e-9).of(0.0)
+  end
 end
 
 describe Reinforce::Environments::MultiCluster do
@@ -134,7 +149,7 @@ describe Reinforce::Environments::MultiCluster do
     end
 
     expect(observation.size).to be == layout.size
-    expect(layout.size).to be == env.class.new(clusters: 2).observation_layout.size + 2 + 8 + 8
+    expect(layout.size).to be == env.class.new(clusters: 2).observation_layout.size + 2 + 8 + 8 + 8
     expect(observation.all? { |value| value.between?(0.0, 1.0) }).to be == true
     # readings every 15 s, one decision a second, ages normalized by 60 s
     expect(ages.sum / ages.size).to be_within(0.06).of((7.5 + 2.0) / 60.0)

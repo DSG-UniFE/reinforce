@@ -41,8 +41,9 @@ module Reinforce
     #   telemetry_interval). With `telemetry` (see Telemetry and
     #   docs/sensor-model.md), the free resources are those the agent
     #   assumes (its last reading of the cluster corrected by its own
-    #   changes since), followed by each cluster's reading age, and the
-    #   estimated drift and volatility of the other tenants' consumption.
+    #   changes since), followed by each cluster's reading age, the
+    #   estimated drift and volatility of the other tenants' consumption,
+    #   and the probability that they change nothing over the age scale.
     # - **Reward**: 1 - w1 * rejected/R - w2 * overflow/R - w3 * cost -
     #   w4 * latency, where cost and latency are averaged over the deployed
     #   replicas (prices and normalized latencies are in [0, 1]).
@@ -116,9 +117,9 @@ module Reinforce
       end
 
       # Offsets of the observation's components (see #observation_layout).
-      # `age`, `drift` and `volatility` are nil without telemetry.
+      # `age`, `drift`, `volatility` and `quiet` are nil without telemetry.
       Layout = Data.define(:free, :economic_price, :energy_price, :latency, :dependency, :replicas, :demand, :workload, :age, :drift,
-        :volatility, :size)
+        :volatility, :quiet, :size)
 
       # Small requests and fast recovery.
       def self.easy(**options)
@@ -144,6 +145,29 @@ module Reinforce
       def self.diurnal(workload: {}, **options)
         workload = Workloads::Diurnal.new(period: 600.0, **workload)
         new(capacity: {cpu: 200, memory: 400, gpu: 8, bandwidth: 4000}, telemetry_interval: 5.0, workload: workload, **options)
+      end
+
+      # Realistic monitoring (see docs/sensor-model.md): .diurnal's
+      # clusters, agent requests arriving at 1 per second on average along a
+      # daily-like cycle of 600 s with noise, whose services offer `load` of
+      # the capacity on average, background tenants occupying
+      # `background_load` of each cluster with services living about 120 s,
+      # and telemetry scraping every 15 s, with a 2 s ingestion latency and
+      # the agent's ledger. `workload` and `telemetry` override the defaults.
+      def self.monitored(load: 0.5, background_load: 0.35, workload: nil, telemetry: nil, **options)
+        capacity = {cpu: 200, memory: 400, gpu: 8, bandwidth: 4000}
+        config = Config.new(capacity: capacity, **options.slice(:clusters, :max_demand, :gpu_demand, :max_replicas))
+        workload ||= begin
+          profile = Profile.build(cyclic: true) do
+            sine mean: 1.0, amplitude: 0.5, period: 600.0, duration: 600.0
+            noise sigma: 0.2, correlation: 60.0
+          end
+          classes = Workloads.fill_classes([Workloads::RequestClass.new], config)
+          mean_lifetime = load / Workloads.occupation_per_arrival(classes, config, clusters: config.clusters)
+          background = Workloads::Background.new(mean_load: background_load, mean_lifetime: 120.0, replicas: 1..3)
+          Workloads::Scripted.new(profile: profile, mean_lifetime: mean_lifetime, background: background)
+        end
+        new(capacity: capacity, workload: workload, telemetry: telemetry || Telemetry.new, **options)
       end
 
       attr_reader :config, :latency_matrix, :free, :request, :workload
@@ -178,25 +202,27 @@ module Reinforce
       #   `energy_price`, `latency` and `dependency` (clusters each),
       #   `replicas` (1), `demand` (resources), the workload's features,
       #   with telemetry the reading `age` (clusters), the other tenants'
-      #   `drift` and `volatility` (clusters x resources each), and the
-      #   total `size`.
+      #   `drift` and `volatility` and the probability that they change
+      #   nothing over the age scale, `quiet` (clusters x resources each),
+      #   and the total `size`.
       def observation_layout
         @observation_layout ||= begin
           n = clusters
           resources = RESOURCES.size
           workload = (n * resources) + (4 * n) + 1 + resources
           size = workload + @config.workload_model.feature_size
-          age = drift = volatility = nil
+          age = drift = volatility = quiet = nil
           if @config.telemetry
             age = size
             drift = age + n
             volatility = drift + (n * resources)
-            size = volatility + (n * resources)
+            quiet = volatility + (n * resources)
+            size = quiet + (n * resources)
           end
           Layout.new(free: 0, economic_price: n * resources, energy_price: (n * resources) + n,
             latency: (n * resources) + (2 * n), dependency: (n * resources) + (3 * n),
             replicas: (n * resources) + (4 * n), demand: (n * resources) + (4 * n) + 1,
-            workload: workload, age: age, drift: drift, volatility: volatility, size: size)
+            workload: workload, age: age, drift: drift, volatility: volatility, quiet: quiet, size: size)
         end
       end
 
@@ -430,7 +456,8 @@ module Reinforce
         volatility = @knowledge.flat_map do |known|
           known.volatility.each_with_index.map { |sigma, resource| capacity[resource].positive? ? (sigma * Math.sqrt(scale) / capacity[resource]).clamp(0.0, 1.0) : 0.0 }
         end
-        ages + drift + volatility
+        quiet = @knowledge.flat_map { |known| known.event_rate.map { |rate| Math.exp(-rate * scale) } }
+        ages + drift + volatility + quiet
       end
 
       # Each cluster's free resources as measured `delay` steps ago, the

@@ -21,7 +21,10 @@ module Reinforce
       #   (other tenants) are estimated from consecutive readings by
       #   exponential moving averages with weight `smoothing`, from zero
       #   drift and a volatility of `prior_volatility` (a fraction of the
-      #   capacity per square root of the time unit).
+      #   capacity per square root of the time unit), and so is the rate of
+      #   those changes for each resource, from how often consecutive
+      #   readings of it differ by nothing but the agent's own changes
+      #   (starting from never).
       #
       # Ages are normalized by `max_age` (nil: four intervals).
       Telemetry = Data.define(:interval, :jitter, :latency_median, :latency_sigma, :failure, :ledger, :max_age, :smoothing,
@@ -45,10 +48,14 @@ module Reinforce
 
       class Telemetry
         # What the agent knows about one cluster: the reading in use, when it
-        # was scraped, the ledger since then, and the estimated drift and
+        # was scraped, the ledger since then, the estimated drift and
         # volatility of other tenants' consumption (per resource, per time
-        # unit and per square root of the time unit).
-        Knowledge = Data.define(:reading, :scraped_at, :age, :ledger, :drift, :volatility)
+        # unit and per square root of the time unit), and the estimated rate
+        # at which they change each resource (per time unit).
+        Knowledge = Data.define(:reading, :scraped_at, :age, :ledger, :drift, :volatility, :event_rate)
+
+        # Below this, a change between readings counts as none.
+        QUIET = 1e-6
 
         # @private
         class Monitor
@@ -68,6 +75,8 @@ module Reinforce
             @next_scrape = @nominal.map { |time| time + jitter }
             @drift = Array.new(clusters) { Array.new(capacity.size, 0.0) }
             @variance = Array.new(clusters) { capacity.map { |amount| (telemetry.prior_volatility * amount)**2 } }
+            @quiet = Array.new(clusters) { Array.new(capacity.size, 0.0) } # the fraction of intervals without others' changes
+            @elapsed = Array.new(clusters, telemetry.interval) # the mean time between readings
           end
 
           # Takes the scrapes due up to `time` (inclusive) of `free`, the
@@ -95,7 +104,7 @@ module Reinforce
               reading = @current[cluster]
               Knowledge.new(reading: reading.values, scraped_at: reading.scraped_at, age: time - reading.scraped_at,
                 ledger: own_since(cluster, reading.scraped_at), drift: @drift[cluster].dup,
-                volatility: @variance[cluster].map { |variance| Math.sqrt(variance) })
+                volatility: @variance[cluster].map { |variance| Math.sqrt(variance) }, event_rate: event_rate(cluster))
             end
           end
 
@@ -151,10 +160,19 @@ module Reinforce
             weight = @telemetry.smoothing
             @capacity.each_index do |resource|
               growth = previous.values[resource] - reading.values[resource] - own[resource]
+              @quiet[cluster][resource] += weight * (((growth.abs < QUIET) ? 1.0 : 0.0) - @quiet[cluster][resource])
               deviation = growth - (@drift[cluster][resource] * elapsed)
               @drift[cluster][resource] += weight * ((growth / elapsed) - @drift[cluster][resource])
               @variance[cluster][resource] += weight * ((deviation**2 / elapsed) - @variance[cluster][resource])
             end
+            @elapsed[cluster] += weight * (elapsed - @elapsed[cluster])
+          end
+
+          # Other tenants' changes of each resource per time unit, from the
+          # fraction of quiet intervals (a Poisson process is quiet over t
+          # with probability exp(-rate t)).
+          def event_rate(cluster)
+            @quiet[cluster].map { |quiet| -Math.log(quiet.clamp(QUIET, 1.0)) / @elapsed[cluster] }
           end
 
           # The agent's net consumption on `cluster` from `from` (inclusive) on.

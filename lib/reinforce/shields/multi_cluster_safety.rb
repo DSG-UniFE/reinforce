@@ -10,13 +10,31 @@ module Reinforce
     # as a differentiable score in [0, 1] computed by a Logic Tensor Network
     # from probabilistic sensors.
     #
-    # **Sensors.** Telemetry may be up to D steps old, so the free amount of a
-    # resource is uncertain: after d steps it lies between the measurement
-    # minus d times the most a step can consume and the measurement plus d
-    # times the most a step can recover (within the capacity). Taking it
-    # uniform in that interval, and averaging over d in 0..D, gives the
-    # probability that a cluster has at least the amount its quota of
-    # replicas needs (an indicator when the interval is empty, e.g. D = 0).
+    # **Sensors.** The free amount of each resource is uncertain, and the
+    # sensors give the probability that a cluster has at least the amount
+    # its quota of replicas needs. How depends on the environment's
+    # telemetry (see docs/sensor-model.md):
+    #
+    # - *legacy* (max_delay or telemetry_interval): telemetry may be up to D
+    #   steps old, so after d steps the free amount lies between the
+    #   measurement minus d times the most a step can consume and the
+    #   measurement plus d times the most a step can recover (within the
+    #   capacity). Taking it uniform in that interval, and averaging over d
+    #   in 0..D, gives the probability (an indicator when the interval is
+    #   empty, e.g. D = 0).
+    # - *telemetry* (MultiCluster::Telemetry): the observation gives the
+    #   free amount y the agent assumes, the age a of its reading, the other
+    #   tenants' estimated drift v and volatility s, and the probability q
+    #   that they change nothing over the age scale A. Over the age, they
+    #   change nothing with probability p0 = q^(a / A), and then the free
+    #   amount is exactly y; otherwise their consumption grows by a normal
+    #   amount whose mean and variance make the mixture's v a and s^2 a.
+    #   The probability of at least x, for x in (0, capacity], is then
+    #   p0 [y >= x] + (1 - p0) (1 - Phi((x - y + m) / sd)), with m and sd
+    #   the normal's (1 below 0 and 0 above the capacity), with p0, m and sd
+    #   per resource (other tenants' services need e.g. GPUs only now and
+    #   then).
+    #
     # From these, per cluster:
     #
     # - `fit` (per resource): the cluster has enough of the resource.
@@ -63,6 +81,7 @@ module Reinforce
         @clusters = environment.clusters
         config = environment.config
         resources = Reinforce::Environments::MultiCluster::RESOURCES
+        @telemetry = config.telemetry
         @max_delay = environment.telemetry_delay_bound
         @replica_limit = config.replica_limit
         max_demand = config.max_demand_per_resource
@@ -116,6 +135,7 @@ module Reinforce
       # @returns [Hash{Symbol => Torch::Tensor}] the keyword arguments of #evaluate.
       def sensors(observations, shares)
         free, replicas, demand = decode(observations)
+        @uncertainty = uncertainty(observations) if @telemetry
         cluster_shares = shares.narrow(1, 0, @clusters)
         reject_share = shares.select(1, @clusters)
         amounts = (cluster_shares * replicas.unsqueeze(1)).unsqueeze(2) * demand.unsqueeze(1)
@@ -134,6 +154,15 @@ module Reinforce
           Torch.ones_like(rejected))
 
         {chosen: cluster_shares, fit: fit, comfortable: comfortable, reject_chosen: reject_share, reject_safe: reject_safe}
+      end
+
+      # The probability that each cluster accommodates the replicas the
+      # shares give it (fit in every resource), for calibration (see
+      # Shields::Calibration).
+      #
+      # @returns [Torch::Tensor] batch x clusters.
+      def fit_probabilities(observations, shares)
+        sensors(observations, shares)[:fit].prod(2)
       end
 
       # How far the allocated replicas are from the request's dependency: the
@@ -185,8 +214,9 @@ module Reinforce
       end
 
       # @returns [Array(Torch::Tensor)] the measured free resources (batch x
-      #   clusters x resources), the replica counts (batch) and the
-      #   per-replica demands (batch x resources), in physical units.
+      #   clusters x resources; with telemetry, the ones the agent assumes),
+      #   the replica counts (batch) and the per-replica demands (batch x
+      #   resources), in physical units.
       def decode(observations)
         resources = @capacity.size(0)
         free = observations.narrow(1, @layout.free, @clusters * resources).reshape(-1, @clusters, resources) * @capacity
@@ -195,9 +225,52 @@ module Reinforce
         [free, replicas, demand]
       end
 
+      # With telemetry: the age of each cluster's reading (batch x clusters).
+      def age(observations)
+        observations.narrow(1, @layout.age, @clusters) * @telemetry.age_scale
+      end
+
+      # With telemetry: the other tenants' estimated consumption per time
+      # unit (batch x clusters x resources).
+      def drift(observations)
+        resources = @capacity.size(0)
+        normalized = observations.narrow(1, @layout.drift, @clusters * resources).reshape(-1, @clusters, resources)
+        ((normalized * 2.0) - 1.0) * @capacity / @telemetry.age_scale
+      end
+
+      # With telemetry: the other tenants' estimated volatility per square
+      # root of a time unit (batch x clusters x resources).
+      def volatility(observations)
+        resources = @capacity.size(0)
+        normalized = observations.narrow(1, @layout.volatility, @clusters * resources).reshape(-1, @clusters, resources)
+        normalized * @capacity / Math.sqrt(@telemetry.age_scale)
+      end
+
+      # With telemetry: over each reading's age, the probability that the
+      # other tenants change nothing (`quiet`) and,
+      # if they do, the mean growth of their consumption and its standard
+      # deviation, matching the drift and volatility of the mixture (batch x
+      # clusters x resources each).
+      def uncertainty(observations)
+        age = age(observations).unsqueeze(2)
+        scale = @telemetry.age_scale
+        resources = @capacity.size(0)
+        quiet = observations.narrow(1, @layout.quiet, @clusters * resources).reshape(-1, @clusters, resources).clamp(TINY, 1.0)**(age / scale)
+        active = Torch.clamp(1.0 - quiet, min: TINY)
+        mean = drift(observations) * age
+        variance = (volatility(observations)**2) * age
+        shift = mean / active
+        spread = Torch.sqrt(Torch.clamp(((variance + (mean**2)) / active) - (shift**2), min: 0.0))
+        {quiet: quiet, shift: shift, spread: spread}
+      end
+
       # The probability that the free amount of each resource is at least
-      # `amounts`, averaged over the possible delays of the measurement.
+      # `amounts`: with telemetry, from the mixture of the last #sensors
+      # call around the assumed `free` amounts; otherwise averaged over the
+      # possible delays of the measurement.
       def availability(free, amounts)
+        return mixture_availability(free, amounts) if @telemetry
+
         total = Torch.zeros_like(amounts)
         (0..@max_delay).each do |delay|
           low = Torch.clamp(free - (@max_consumption * delay), min: 0.0)
@@ -207,6 +280,29 @@ module Reinforce
           total += Torch.where(spread, Torch.clamp((high - amounts) / width, 0.0, 1.0), free.ge(amounts).to(amounts.dtype))
         end
         total / (@max_delay + 1)
+      end
+
+      # Per resource, the marginal probability of the mixture.
+      def mixture_availability(assumed, amounts)
+        unchanged, changed = mixture_parts(assumed, amounts)
+        quiet = @uncertainty[:quiet].expand_as(amounts)
+        (quiet * unchanged) + ((1.0 - quiet) * changed)
+      end
+
+      # Per resource, whether the assumed amount fits `amounts` if the other
+      # tenants changed nothing, and the probability that it does if they
+      # did, censored to [0, capacity].
+      def mixture_parts(assumed, amounts)
+        capacity = @capacity.expand_as(amounts)
+        mean = assumed - @uncertainty[:shift].expand_as(amounts)
+        spread = @uncertainty[:spread].expand_as(amounts)
+        uncertain = spread.gt(TINY)
+        safe_spread = Torch.where(uncertain, spread, Torch.ones_like(spread))
+        changed = Torch.where(uncertain, 0.5 * Torch.erfc((amounts - mean) / (safe_spread * Math.sqrt(2.0))), mean.ge(amounts).to(amounts.dtype))
+        unchanged = assumed.ge(amounts).to(amounts.dtype)
+        [unchanged, changed].map do |part|
+          Torch.where(amounts.le(0.0), Torch.ones_like(amounts), Torch.where(amounts.gt(capacity), Torch.zeros_like(amounts), part))
+        end
       end
 
       # The most replicas each cluster hosts with fit probability at least

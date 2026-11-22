@@ -84,6 +84,45 @@ where ℓ is the mean latency to the request's dependency. Among q⁰ and the
 K candidates, the shield executes the cheapest that reaches τ, or, if none
 does, the safest. Defaults: τ = 0.6, K = 6, η = 0.5, λ_d = 0.05, β = 0.5.
 
+### Choosing the threshold
+
+With calibrated sensors, τ is a risk level: the shield accepts an
+allocation when its probability of landing safely is at least τ. A sweep of
+τ for PPO-LTN (deterministic safety loss, λ_s = 0.3; monitored testbed,
+load 0.8, 4 clusters, 3 seeds, 100k training steps) shows what it trades:
+
+| τ | Overflow | Rejected | Served | Interventions per step |
+|---|---|---|---|---|
+| 0.3 | 6.5% | 2.3% | 89.2% | 0.04 |
+| 0.45 | 5.1% | 3.8% | 89.5% | 0.07 |
+| 0.6 | 3.7% | 5.1% | 89.7% | 0.12 |
+| 0.75 | 2.7% | 6.1% | 89.9% | 0.18 |
+| 0.9 | 2.4% | 6.5% | 89.8% | 0.27 |
+
+(percentages of the requested replicas, interventions at test time).
+
+- **τ turns overflow into rejection about one for one.** From 0.3 to 0.9,
+  overflow falls by 4.1 points and rejection rises by 4.2, while the
+  replicas served stay at about 90% and the return does not change beyond
+  the noise.
+- **The unservable replicas set the trade-off.** At this load, every agent
+  (plain PPO, shielded agents at every τ and λ_s, greedy best fit, even an
+  oracle that sees the true state) leaves 8.7–9.8% of the replicas
+  rejected or in overflow. What an agent decides is *how* the replicas that
+  cannot be served are handled: as explicit rejections, or as failed
+  deployments. The shield makes that choice explicit and tunable, at no
+  cost in replicas served.
+- **A higher τ shifts the work to the shield, not into the policy.** Tested
+  without the shield, the policy overflows about 5.8% for every τ ≥ 0.45,
+  and its return on its own falls (from 510 to 451): the stricter the
+  shield, the more the policy leans on it.
+- **τ ≈ 0.75** is a good default when a failed deployment costs more than
+  a rejection: it reaches 2.7% in overflow, close to greedy best fit, with
+  moderate interventions; 0.9 gains little more for 50% more
+  interventions. With a reward that weighs rejection and overflow equally
+  (w1 = w2), as in the benchmark, τ hardly affects the return; making
+  overflow costlier (w2 > w1) would let the return reflect the choice.
+
 ### What the learner sees
 
 The learner is trained on the **base** action: SAC stores it in the

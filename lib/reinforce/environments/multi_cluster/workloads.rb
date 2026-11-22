@@ -13,7 +13,9 @@ module Reinforce
       # - `deployed(cluster, amounts, request)` records that `amounts` of
       #   `cluster`'s resources now serve `request`;
       # - `advance(free, capacity)` moves to the next arrival, giving
-      #   resources back to `free` (clusters x resources, in place);
+      #   resources back to `free` (clusters x resources, in place), and
+      #   passes each change to its block, if given, as an Event before
+      #   applying it;
       # - `features` are extra observation components, in [0, 1];
       # - `offered_load` is the load the arrivals currently offer, as a
       #   fraction of the capacity (nil if the workload has no notion of it).
@@ -44,6 +46,42 @@ module Reinforce
         # @private
         def self.sample_dependency(random, config)
           (random.rand < config.dependency_probability) ? random.rand(config.clusters) : nil
+        end
+
+        # Request classes with what they leave nil filled in from the
+        # environment's Config, and checked against its limits (which
+        # normalize the observations).
+        # @private
+        def self.fill_classes(classes, config)
+          classes.map do |request_class|
+            filled = request_class.with(
+              replicas: request_class.replicas || (1..config.replica_limit),
+              max_demand: request_class.max_demand || config.max_demand,
+              gpu_demand: request_class.gpu_demand || config.gpu_demand
+            )
+            if filled.replicas.last > config.replica_limit || filled.max_demand.any? { |resource, maximum| maximum > config.max_demand.fetch(resource) } ||
+                filled.gpu_demand.keys.max > config.gpu_demand.keys.max
+              raise ArgumentError, "request classes must stay within the environment's replica and demand limits"
+            end
+            filled
+          end
+        end
+
+        # The fraction of the capacity of `clusters` clusters (for the most
+        # demanded resource) that one arrival per time unit occupies per
+        # unit of mean lifetime, with the classes' mix and lifetime scales:
+        # by Little's law, the occupation is rate x mean lifetime x this.
+        # @private
+        def self.occupation_per_arrival(classes, config, clusters:)
+          total_weight = classes.sum(&:weight)
+          capacity = config.capacity
+          RESOURCES.filter_map do |resource|
+            total = capacity.fetch(resource) * clusters
+            next unless total.positive?
+
+            classes.sum { |request_class| request_class.weight * request_class.lifetime_scale * request_class.expected_demand(resource) } /
+              total_weight / total
+          end.max
         end
 
         # One request per step, and each cluster recovers a random amount of
@@ -95,11 +133,12 @@ module Reinforce
             def advance(free, capacity)
               @time += 1
               recovery = @config.recovery
-              free.each do |cluster|
-                RESOURCES.each_with_index do |resource, index|
-                  amount = (resource == :gpu) ? @random.rand(0..recovery.fetch(:gpu)) : @random.rand * recovery.fetch(resource)
-                  cluster[index] = [cluster[index] + amount, capacity[index]].min
+              free.each_with_index do |cluster, cluster_index|
+                amounts = RESOURCES.map do |resource|
+                  (resource == :gpu) ? @random.rand(0..recovery.fetch(:gpu)) : @random.rand * recovery.fetch(resource)
                 end
+                yield Event.new(time: @time, kind: :release, cluster: cluster_index, amounts: amounts, own: false) if block_given?
+                amounts.each_with_index { |amount, index| cluster[index] = [cluster[index] + amount, capacity[index]].min }
               end
             end
 
@@ -188,35 +227,14 @@ module Reinforce
           # where left nil, and checked against its limits (which normalize
           # the observations).
           def request_classes(config)
-            (classes || [RequestClass.new]).map do |request_class|
-              filled = request_class.with(
-                replicas: request_class.replicas || (1..config.replica_limit),
-                max_demand: request_class.max_demand || config.max_demand,
-                gpu_demand: request_class.gpu_demand || config.gpu_demand
-              )
-              if filled.replicas.last > config.replica_limit || filled.max_demand.any? { |resource, maximum| maximum > config.max_demand.fetch(resource) } ||
-                  filled.gpu_demand.keys.max > config.gpu_demand.keys.max
-                raise ArgumentError, "request classes must stay within the environment's replica and demand limits"
-              end
-              filled
-            end
+            Workloads.fill_classes(classes || [RequestClass.new], config)
           end
 
           # The mean lifetime that makes the arrivals occupy `mean_load` of
           # the capacity of the most demanded resource (Little's law, with one
           # arrival per time unit on average).
           def mean_lifetime(config)
-            request_classes = request_classes(config)
-            total_weight = request_classes.sum(&:weight)
-            capacity = config.capacity
-            occupation = RESOURCES.filter_map do |resource|
-              total = capacity.fetch(resource) * config.clusters
-              next unless total.positive?
-
-              request_classes.sum { |request_class| request_class.weight * request_class.lifetime_scale * request_class.expected_demand(resource) } /
-                total_weight / total
-            end
-            mean_load / occupation.max
+            mean_load / Workloads.occupation_per_arrival(request_classes(config), config, clusters: config.clusters)
           end
 
           # The most a cluster gets back in a step: taken as one whole request,
@@ -260,7 +278,8 @@ module Reinforce
             def advance(free, capacity)
               @time = next_arrival
               while @departures.any? && @departures.first.first <= @time
-                _time, cluster, amounts = @departures.shift
+                time, cluster, amounts = @departures.shift
+                yield Event.new(time: time, kind: :departure, cluster: cluster, amounts: amounts, own: true) if block_given?
                 amounts.each_with_index { |amount, resource| free[cluster][resource] = [free[cluster][resource] + amount, capacity[resource]].min }
               end
             end
@@ -318,3 +337,5 @@ module Reinforce
     end
   end
 end
+
+require_relative "scripted"

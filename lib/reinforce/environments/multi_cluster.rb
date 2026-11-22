@@ -3,6 +3,7 @@
 require_relative "../environment"
 require_relative "../spaces"
 require_relative "multi_cluster/workloads"
+require_relative "multi_cluster/telemetry"
 
 module Reinforce
   module Environments
@@ -37,7 +38,11 @@ module Reinforce
     #   features (e.g. the phase of the cycle). Each measurement is delayed
     #   by a random number of steps in 0..max_delay, drawn independently
     #   per cluster and resource, or is the cluster's last scrape (see
-    #   telemetry_interval).
+    #   telemetry_interval). With `telemetry` (see Telemetry and
+    #   docs/sensor-model.md), the free resources are those the agent
+    #   assumes (its last reading of the cluster corrected by its own
+    #   changes since), followed by each cluster's reading age, and the
+    #   estimated drift and volatility of the other tenants' consumption.
     # - **Reward**: 1 - w1 * rejected/R - w2 * overflow/R - w3 * cost -
     #   w4 * latency, where cost and latency are averaged over the deployed
     #   replicas (prices and normalized latencies are in [0, 1]).
@@ -45,7 +50,8 @@ module Reinforce
     # Episodes last `horizon` steps and end truncated (`info[:truncated]`),
     # and `info[:metrics]` reports the step's requested, served, rejected
     # and overflowing replicas, the deployed replicas' total cost and
-    # latency, the utilization of the most used resource and, if the
+    # latency, the utilization of the most used resource, the background
+    # services dropped (if the workload has background tenants) and, if the
     # workload has one, the offered load.
     class MultiCluster
       include Reinforce::Environment
@@ -80,12 +86,16 @@ module Reinforce
       # reward_weights: the weights of rejection, overflow, cost and latency.
       # workload: how requests arrive and resources are released (see
       #   Workloads); nil means Workloads::Turnover.
+      # telemetry: a Telemetry pipeline, replacing max_delay and
+      #   telemetry_interval; nil keeps them.
       Config = Data.define(:clusters, :capacity, :max_demand, :gpu_demand, :max_replicas, :recovery, :max_delay,
-        :telemetry_interval, :dependency_probability, :horizon, :reward_weights, :workload) do
+        :telemetry_interval, :dependency_probability, :horizon, :reward_weights, :workload, :telemetry) do
         def initialize(clusters: 4, capacity: {cpu: 50, memory: 100, gpu: 2, bandwidth: 1000},
           max_demand: {cpu: 5, memory: 10, bandwidth: 100}, gpu_demand: {0 => 0.8, 1 => 0.2}, max_replicas: nil,
           recovery: {cpu: 25, memory: 50, gpu: 1, bandwidth: 500}, max_delay: 1, telemetry_interval: nil, dependency_probability: 0.5,
-          horizon: 1_000, reward_weights: [2.0, 2.0, 0.5, 0.5], workload: nil)
+          horizon: 1_000, reward_weights: [2.0, 2.0, 0.5, 0.5], workload: nil, telemetry: nil)
+          raise ArgumentError, "telemetry replaces telemetry_interval: set one of them" if telemetry && telemetry_interval
+
           super
         end
 
@@ -106,7 +116,9 @@ module Reinforce
       end
 
       # Offsets of the observation's components (see #observation_layout).
-      Layout = Data.define(:free, :economic_price, :energy_price, :latency, :dependency, :replicas, :demand, :workload, :size)
+      # `age`, `drift` and `volatility` are nil without telemetry.
+      Layout = Data.define(:free, :economic_price, :energy_price, :latency, :dependency, :replicas, :demand, :workload, :age, :drift,
+        :volatility, :size)
 
       # Small requests and fast recovery.
       def self.easy(**options)
@@ -164,17 +176,27 @@ module Reinforce
       # @returns [Layout] the start of each component of the observation:
       #   `free` (clusters x resources, cluster-major), `economic_price`,
       #   `energy_price`, `latency` and `dependency` (clusters each),
-      #   `replicas` (1), `demand` (resources) and the workload's features,
-      #   and the total `size`.
+      #   `replicas` (1), `demand` (resources), the workload's features,
+      #   with telemetry the reading `age` (clusters), the other tenants'
+      #   `drift` and `volatility` (clusters x resources each), and the
+      #   total `size`.
       def observation_layout
         @observation_layout ||= begin
           n = clusters
           resources = RESOURCES.size
+          workload = (n * resources) + (4 * n) + 1 + resources
+          size = workload + @config.workload_model.feature_size
+          age = drift = volatility = nil
+          if @config.telemetry
+            age = size
+            drift = age + n
+            volatility = drift + (n * resources)
+            size = volatility + (n * resources)
+          end
           Layout.new(free: 0, economic_price: n * resources, energy_price: (n * resources) + n,
             latency: (n * resources) + (2 * n), dependency: (n * resources) + (3 * n),
             replicas: (n * resources) + (4 * n), demand: (n * resources) + (4 * n) + 1,
-            workload: (n * resources) + (4 * n) + 1 + resources,
-            size: (n * resources) + (4 * n) + 1 + resources + @config.workload_model.feature_size)
+            workload: workload, age: age, drift: drift, volatility: volatility, size: size)
         end
       end
 
@@ -187,6 +209,7 @@ module Reinforce
         @scrape_phase = Array.new(clusters) { interval ? @delay_random.rand * interval : 0.0 }
         @economic_price = Array.new(clusters) { @random.rand }
         @energy_price = Array.new(clusters) { @random.rand }
+        @monitor = @config.telemetry&.start(@free, capacities, @delay_random)
         new_request
         observe
       end
@@ -199,8 +222,20 @@ module Reinforce
         counts = self.class.allocate(replicas, self.class.shares(action))
         outcome = deploy(counts)
         reward = reward_for(replicas, counts.last, outcome)
+        dropped = background_dropped
 
-        @workload.advance(@free, capacities)
+        if @monitor
+          outcome[:deployments].each do |deployment|
+            @monitor.record_own(@workload.time, deployment[:cluster], deployment[:amounts]) if deployment[:fitted]
+          end
+          @workload.advance(@free, capacities) do |event|
+            @monitor.advance(event.time, @free)
+            @monitor.record_own(event.time, event.cluster, event.amounts.map(&:-@)) if event.own
+          end
+          @monitor.advance(@workload.time, @free)
+        else
+          @workload.advance(@free, capacities)
+        end
         @step_count += 1
         record_history
         new_request
@@ -210,7 +245,9 @@ module Reinforce
                    cost: outcome[:cost], latency: outcome[:latency], utilization: utilization}
         offered_load = @workload.offered_load
         metrics[:offered_load] = offered_load if offered_load
-        [observe, reward, done, {truncated: done, metrics: metrics}]
+        metrics[:background_dropped] = background_dropped - dropped if dropped
+        deployments = outcome[:deployments].map { |deployment| deployment.slice(:cluster, :replicas, :fitted) }
+        [observe, reward, done, {truncated: done, metrics: metrics, deployments: deployments}]
       end
 
       # The shares an action gives each cluster and the reject option.
@@ -360,7 +397,40 @@ module Reinforce
 
       def new_request
         @request = @workload.next_request
-        @measured = measure
+        @measured = @monitor ? monitored : measure
+      end
+
+      # @returns [Integer, nil] the background services dropped so far, if the workload has any.
+      def background_dropped
+        @workload.respond_to?(:background_dropped) ? @workload.background_dropped : nil
+      end
+
+      # With telemetry: each cluster's free resources as the agent assumes
+      # them (its reading corrected by its own changes since, within the
+      # capacity), or as read without the ledger; keeps what it knows for
+      # the observation.
+      def monitored
+        capacity = capacities
+        @knowledge = @monitor.knowledge(@workload.time)
+        @knowledge.map do |known|
+          next known.reading.dup unless @config.telemetry.ledger
+
+          known.reading.each_with_index.map { |value, resource| (value - known.ledger[resource]).clamp(0.0, capacity[resource]) }
+        end
+      end
+
+      # The observation's telemetry components (see #observation_layout).
+      def telemetry_features
+        capacity = capacities
+        scale = @config.telemetry.age_scale
+        ages = @knowledge.map { |known| (known.age / scale).clamp(0.0, 1.0) }
+        drift = @knowledge.flat_map do |known|
+          known.drift.each_with_index.map { |rate, resource| capacity[resource].positive? ? (((rate * scale / capacity[resource]).clamp(-1.0, 1.0) + 1.0) / 2.0) : 0.5 }
+        end
+        volatility = @knowledge.flat_map do |known|
+          known.volatility.each_with_index.map { |sigma, resource| capacity[resource].positive? ? (sigma * Math.sqrt(scale) / capacity[resource]).clamp(0.0, 1.0) : 0.0 }
+        end
+        ages + drift + volatility
       end
 
       # Each cluster's free resources as measured `delay` steps ago, the
@@ -413,19 +483,23 @@ module Reinforce
           max_demand[resource].positive? ? @request[:demand][resource].to_f / max_demand[resource] : 0.0
         end
 
-        free + @economic_price + @energy_price + latency + location + [@request[:replicas].to_f / @config.replica_limit] + demand + @workload.features
+        observation = free + @economic_price + @energy_price + latency + location + [@request[:replicas].to_f / @config.replica_limit] + demand +
+          @workload.features
+        @monitor ? observation + telemetry_features : observation
       end
 
       def deploy(counts)
         demand = RESOURCES.map { |resource| @request[:demand][resource] }
         dependency = @request[:dependency]
-        outcome = {served: 0, overflow: 0, cost: 0.0, latency: 0.0}
+        outcome = {served: 0, overflow: 0, cost: 0.0, latency: 0.0, deployments: []}
         clusters.times do |cluster|
           count = counts[cluster]
           next if count.zero?
 
           needed = demand.map { |amount| count * amount }
-          if needed.each_with_index.all? { |amount, resource| amount <= @free[cluster][resource] }
+          fitted = needed.each_with_index.all? { |amount, resource| amount <= @free[cluster][resource] }
+          outcome[:deployments] << {cluster: cluster, replicas: count, fitted: fitted, amounts: needed.map(&:to_f)}
+          if fitted
             needed.each_with_index { |amount, resource| @free[cluster][resource] -= amount }
             outcome[:served] += count
             @workload.deployed(cluster, needed, @request)

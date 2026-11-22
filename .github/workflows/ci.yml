@@ -13,8 +13,16 @@ on:
 # version"). gems.locked is not committed, so the torch-rb that CI installs
 # is pinned in gems.rb instead; bump both together, following the "LibTorch
 # Compatibility" table in torch-rb's README.
+#
+# Seeded tests and benchmarks train small networks, and LibTorch splits CPU
+# work across as many threads as the runner has cores; the order of the
+# floating-point sums, and so the training, then depends on the runner. Some
+# seeds learned on one runner and not on another (same code, same gems,
+# different runner image builds), so every job runs LibTorch on one thread.
 env:
   LIBTORCH_VERSION: "2.15.0" # for torch-rb ~> 0.27.0 (see gems.rb)
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
 
 jobs:
   test-linux:

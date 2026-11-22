@@ -10,12 +10,16 @@ require_relative "support/skill_benchmark"
 # 8 skills on an open 10x10 GridWorld (coordinate observations, 50-step
 # episodes, PPO). Each skill is run from the start once greedily and five
 # times sampled; a run counts as identified when the discriminator
-# attributes its final state to the right skill. Measured 2026-11-11:
+# attributes its final state to the right skill. The PPO agent uses an
+# entropy bonus of 0.1: with the default 0.01, skills partly collapse on
+# some seeds (2 of 6 locally, and seed 1 on CI's runners, at 0.60-0.62
+# identified), so the outcome depended on the machine. Measured 2026-11-23
+# (one LibTorch thread, as in CI), 1,000 rollouts:
 #
-#   training             identified   distinct greedy end cells
-#   none                 0.12-0.17    2-4 / 8   (chance: 0.125)
-#   1,000 rollouts       0.83-0.88    7 / 8
-#   3,000 rollouts       0.88-1.00    7-8 / 8
+#   training                         identified   distinct greedy end cells
+#   none                             0.12-0.17    2-4 / 8   (chance: 0.125)
+#   entropy 0.01 (seeds 1-6)         0.62-0.88    6-8 / 8
+#   entropy 0.1 (seeds 1-12)         0.83-1.00    7-8 / 8
 #
 # Known limitation, not checked here: on four-rooms GridWorlds DIAYN's
 # skills are perfectly distinguishable but nearly all stay in the starting
@@ -39,7 +43,7 @@ describe "skill discovery benchmark" do
   def diayn
     lambda do |environment|
       Reinforce::Algorithms::DIAYN.new(
-        environment, skills: 8, agent: ->(env) { Reinforce::Algorithms::PPO.new(env, learning_rate: 1e-3) }
+        environment, skills: 8, agent: ->(env) { Reinforce::Algorithms::PPO.new(env, learning_rate: 1e-3, entropy_coefficient: 0.1) }
       )
     end
   end

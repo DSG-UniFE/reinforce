@@ -140,8 +140,12 @@ describe "Action masks" do
     Torch.manual_seed(4)
     srand(4)
     environment = MaskedBandit.new
+    # With the default discount (0.99), the Q-values are about 75 and the
+    # rewards' 0.5 differences drown in their noise: the greedy action was
+    # wrong on 1-5 seeds out of 40, depending on the machine. With 0.9 (the
+    # next state still matters), 40 out of 40 are right.
     agent = Reinforce::Algorithms::DQN.new(environment, learning_rate: 0.005, training_start: 64, q_update_frequency: 4,
-      target_update_frequency: 64, minibatch_size: 32, epsilon: 0.5)
+      target_update_frequency: 64, minibatch_size: 32, epsilon: 0.5, discount_factor: 0.9)
     agent.train(episodes: 30, steps_per_episode: 64)
 
     expect(environment.taken.all?(&:last)).to be == true

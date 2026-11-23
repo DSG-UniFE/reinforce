@@ -101,7 +101,7 @@ describe "learning regression benchmark" do
     )
   end
 
-  def sac(environment)
+  def sac(environment, learning_rate: 1e-3)
     Reinforce::Algorithms::SAC.new(
       environment,
       policy_model: small_network(environment),
@@ -109,7 +109,7 @@ describe "learning regression benchmark" do
       q2_model: small_network(environment),
       q1_target_model: small_network(environment),
       q2_target_model: small_network(environment),
-      learning_rate: 1e-3
+      learning_rate: learning_rate
     )
   end
 
@@ -126,12 +126,16 @@ describe "learning regression benchmark" do
     )
   end
 
+  # At a learning rate of 1e-3, seeds 2 and 3 failed on CI's x86-64 runners
+  # (and seed 2 on emulated x86-64) while every seed passed on Apple Silicon;
+  # at SAC's default 3e-4, seeds 1-6 pass on x86-64 and 1-24 on Apple
+  # Silicon.
   it "SAC solves fixed-layout Taxi" do
     expect_learning(
       "SAC / Taxi (fixed)",
       seeds: [1, 2, 3],
       environment: fixed_taxi,
-      agent: ->(environment) { sac(environment) },
+      agent: ->(environment) { sac(environment, learning_rate: 3e-4) },
       train: {episodes: 300, steps_per_episode: 100},
       eval_episodes: 1,
       max_steps: 100,
